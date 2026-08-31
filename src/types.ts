@@ -158,6 +158,15 @@ export interface DeckCardConfig {
   scryfall?: ScryfallCardData
   effect: EffectParams
   /**
+   * How much of a threat this card is, used to weight how likely the bot is to draw it (see
+   * `engine/difficulty.ts`) — higher draws more often as the game favors bigger threats (later
+   * turns, more players, higher difficulty). A scalar so decks can eventually grade cards more
+   * finely than three buckets, but for now stick to 1 (low), 2 (medium), 3 (high) impact.
+   * Missing/undefined is treated as 1 (low) — e.g. cards added via the deck builder before this
+   * was assigned by hand.
+   */
+  impact?: number
+  /**
    * Optional custom-rule text ("errata") that REPLACES the auto-generated
    * instruction for this card. For real cards whose resolution depends on
    * board state the app deliberately doesn't track (e.g. a modal choice
@@ -173,6 +182,14 @@ export interface DeckCardConfig {
 export interface DeckConfig {
   cards: DeckCardConfig[]
 }
+
+/**
+ * Where the active deck came from: either the label of one of `DECK_PRESETS` (data/presets.ts) —
+ * meaning it's a fixed, curated deck the deck builder shows read-only — or `CUSTOM_DECK_SOURCE`,
+ * meaning it's been unlocked (or built/imported from scratch) and is freely editable.
+ */
+export type DeckSource = string
+export const CUSTOM_DECK_SOURCE = 'Custom'
 
 // --- Game state -----------------------------------------------------------
 
@@ -225,10 +242,11 @@ export type CardDestination =
   | { zone: 'library'; position: LibraryPosition }
   | { zone: 'battlefield' }
 
+export type Difficulty = 'easy' | 'normal' | 'hard'
+
 export interface GameConfig {
   playerCount: number
-  drawPerTurn: number
-  startingLife: number
+  difficulty: Difficulty
 }
 
 /**
@@ -263,6 +281,12 @@ export interface GameState {
   /** Snapshot of the deck used to start this game, so later deck-builder edits don't retroactively break an in-progress game. */
   deckSnapshot: DeckCardConfig[]
   bot: BotState
+  /**
+   * Shared life total for the 4 players, tracked only as a convenience counter for the table to
+   * display/adjust manually (like a physical life pad) — mirrors `bot.life`'s input pattern, but
+   * no engine logic ever reads or writes it. It's not part of `BotState` since it isn't bot state.
+   */
+  playersLife: number
   turnLog: TurnLogEntry[]
   turnNumber: number
   phase: GamePhase

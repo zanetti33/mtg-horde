@@ -1,8 +1,9 @@
-import type { BattlefieldCreature, BotState, CardRef, DeckCardConfig, GameStatus, TurnLogEntry } from '../types'
+import type { BattlefieldCreature, BotState, CardRef, DeckCardConfig, Difficulty, GameStatus, TurnLogEntry } from '../types'
 import { collectQueriesForCard, applyCreateCreature, applyPumpBotBoard, applyGainLifeBot, applyDrawExtraBot } from './templates'
 import type { QueryPrompt } from './templates'
 export type { QueryPrompt } from './templates'
 import { describeRemoval, describeDamage, describeSacrifice, describeDiscard } from './instructionText'
+import { computeCardWeight } from './difficulty'
 
 export function findDeckCard(deckSnapshot: DeckCardConfig[], deckCardId: string): DeckCardConfig {
   const card = deckSnapshot.find((c) => c.id === deckCardId)
@@ -10,13 +11,59 @@ export function findDeckCard(deckSnapshot: DeckCardConfig[], deckCardId: string)
   return card
 }
 
-/** Draws `count` cards from the top of the library into the hand. Pure — returns a new BotState. */
-export function drawForTurn(bot: BotState, count: number): BotState {
-  const drawn = bot.library.slice(0, count)
-  const remainingLibrary = bot.library.slice(count)
+/**
+ * Everything needed to weight how likely each remaining library card is to be drawn next — see
+ * `engine/difficulty.ts`. `turnNumber` is the turn the drawn hand will be *played on* (so the
+ * opening hand passes 1, and end-of-turn draws pass the upcoming turn, not the one just finished).
+ * `bonusDrawCount` is how many of the cards being drawn are on top of the turn's base schedule
+ * (`computeBaseDrawCount`) — e.g. from a resolved `DrawExtraBot` card — and pulls card weight down
+ * to compensate, so quantity and quality don't both spike on the same turn (see `computeCardWeight`).
+ * `rng` defaults to `Math.random` and is only overridden by tests that need a deterministic draw.
+ */
+export interface DrawWeightContext {
+  deckSnapshot: DeckCardConfig[]
+  turnNumber: number
+  playerCount: number
+  difficulty: Difficulty
+  bonusDrawCount?: number
+  rng?: () => number
+}
+
+/** Picks an index from `weights` proportionally — `rngValue` is expected in [0, 1). */
+function pickWeightedIndex(weights: number[], rngValue: number): number {
+  const total = weights.reduce((sum, w) => sum + w, 0)
+  let threshold = rngValue * total
+  for (let i = 0; i < weights.length; i++) {
+    threshold -= weights[i]
+    if (threshold < 0) return i
+  }
+  return weights.length - 1
+}
+
+/** Draws `count` cards (or fewer, if the pool runs out) one at a time, without replacement, with probability proportional to each remaining card's impact weight. */
+function drawWeighted(pool: CardRef[], count: number, context: DrawWeightContext): { drawn: CardRef[]; remaining: CardRef[] } {
+  const rng = context.rng ?? Math.random
+  const remaining = [...pool]
+  const drawn: CardRef[] = []
+  const drawCount = Math.min(count, remaining.length)
+  for (let i = 0; i < drawCount; i++) {
+    const weights = remaining.map((ref) => {
+      const card = findDeckCard(context.deckSnapshot, ref.deckCardId)
+      return computeCardWeight(card.impact ?? 1, context.turnNumber, context.playerCount, context.difficulty, context.bonusDrawCount ?? 0)
+    })
+    const index = pickWeightedIndex(weights, rng())
+    drawn.push(remaining[index])
+    remaining.splice(index, 1)
+  }
+  return { drawn, remaining }
+}
+
+/** Draws `count` cards from the library into the hand, weighted by impact (see `DrawWeightContext`). Pure — returns a new BotState. */
+export function drawForTurn(bot: BotState, count: number, context: DrawWeightContext): BotState {
+  const { drawn, remaining } = drawWeighted(bot.library, count, context)
   return {
     ...bot,
-    library: remainingLibrary,
+    library: remaining,
     hand: [...bot.hand, ...drawn],
   }
 }
@@ -194,10 +241,9 @@ export interface DrawNextHandResult {
  * `DrawExtraBot` effect resolved this turn folds into `extraDraws` rather
  * than being drawn and played immediately.
  */
-export function drawNextTurnHand(library: CardRef[], drawPerTurn: number, extraDraws: number): DrawNextHandResult {
+export function drawNextTurnHand(library: CardRef[], drawPerTurn: number, extraDraws: number, context: DrawWeightContext): DrawNextHandResult {
   const nextDrawCount = drawPerTurn + extraDraws
-  const hand = library.slice(0, nextDrawCount)
-  const remainingLibrary = library.slice(nextDrawCount)
+  const { drawn: hand, remaining: remainingLibrary } = drawWeighted(library, nextDrawCount, context)
   const logLine: TurnLogEntry | null =
     hand.length > 0
       ? {

@@ -8,7 +8,7 @@ The app only comes into play during the bot's turn: it keeps the bot's state and
 
 Two deliberate choices follow from this:
 
-1. **The app doesn't track players' life or board.** Doing so would require the operator to keep the app in sync with the real state of the table on every single move by the 4 players — too much overhead for a marginal benefit. Bot effects that would act on players therefore become **generic text instructions** that the table carries out itself (e.g. "Destroy the creature with the highest power among the players' creatures"), instead of targets chosen by the app.
+1. **The app doesn't track players' board, and only offers a single shared life counter as a convenience.** Tracking each player's board individually would require the operator to keep the app in sync with the real state of the table on every single move by the 4 players — too much overhead for a marginal benefit. Bot effects that would act on players therefore become **generic text instructions** that the table carries out itself (e.g. "Destroy the creature with the highest power among the players' creatures"), instead of targets chosen by the app. The one exception is `GameState.playersLife`: a single shared life total the operator can edit like a physical life pad, purely for convenience — no template or instruction ever reads or writes it, so it never becomes a point where the app makes a decision on the players' behalf.
 2. **The bot's cards don't have Oracle text interpreted by the app.** Instead, each card in the bot's deck is mapped to an **effect template** with a handful of simple parameters. This is what makes it possible to include any real card, even one with complex abilities, without having to write a full rules engine: you just pick the template closest to the card's effect.
 
 ## What the app tracks
@@ -24,7 +24,7 @@ Only the **bot's** state ([`BotState`](../src/types.ts)):
 | `graveyard` | The bot's cards that ended up in the graveyard. |
 | `exile` | The bot's exiled cards. |
 
-Players' life and board are **not** represented in any data structure of the app: they stay on the physical table (life counters, cards in play).
+Players' board is **not** represented in any data structure of the app: it stays on the physical table (cards in play). Their life total, however, does get a single shared counter, `GameState.playersLife` — a plain number set at game start (`GameConfig.startingPlayersLife`) and edited manually from `GameBoard`, exactly like `bot.life`. It's tracked purely so the table has one place to see it alongside the bot's life; no engine logic ever reads or writes it.
 
 ## Game loop
 
@@ -133,7 +133,7 @@ If two fields on the same card share the exact same question (as above), the app
 
 ## Deck curation criteria
 
-The app ships with three prebuilt decks, listed in [`src/data/presets.ts`](../src/data/presets.ts) and loadable from the "New game" screen (`SetupScreen`, before starting the game — once a game is in progress the bot's deck stays the one locked into `deckSnapshot`, see below): the [default](../src/data/defaultDeck.ts) one and two larger themed decks with more copies of the same cards, [zombie](../src/data/zombieDeck.ts) and [dinosaur](../src/data/dinosaurDeck.ts) (49 cards each). The cards chosen for these decks — and the ones added by hand from the deck builder — must have a real effect that maps cleanly and directly onto one of the templates above: vanilla creatures or ones with simple keywords, unconditional removal, flat damage, flat buffs, single-variable scaling effects. Cards with complex Oracle text, multiple conditions, replacement effects, or stack interactions are deliberately avoided — not because the system couldn't support them in theory, but because forcing them into a template would distort their effect. When a real card has more nuance than can be represented (e.g. "destroy target non-black creature" simply becomes "destroy a creature"), the simplest reading is always chosen, even if that makes it slightly stronger or weaker than the original — an accepted trade-off, balanced out by the difficulty levers (see below).
+The app ships with two prebuilt decks, listed in [`src/data/presets.ts`](../src/data/presets.ts) and loadable from the "New game" screen (`SetupScreen`, before starting the game — once a game is in progress the bot's deck stays the one locked into `deckSnapshot`, see below): [zombie](../src/data/zombieDeck.ts) and [dinosaur](../src/data/dinosaurDeck.ts), each a themed deck with many copies of the same cards (as a real Horde deck needs, to last several turns). The cards chosen for these decks — and the ones added by hand from the deck builder — must have a real effect that maps cleanly and directly onto one of the templates above: vanilla creatures or ones with simple keywords, unconditional removal, flat damage, flat buffs, single-variable scaling effects. Cards with complex Oracle text, multiple conditions, replacement effects, or stack interactions are deliberately avoided — not because the system couldn't support them in theory, but because forcing them into a template would distort their effect. When a real card has more nuance than can be represented (e.g. "destroy target non-black creature" simply becomes "destroy a creature"), the simplest reading is always chosen, even if that makes it slightly stronger or weaker than the original — an accepted trade-off, balanced out by the difficulty levers (see below).
 
 ## Difficulty levers
 
@@ -142,3 +142,4 @@ Set in `SetupScreen` when starting a game (`GameConfig`):
 - **`drawPerTurn`** — how many cards the bot draws each turn. The main lever: more cards drawn means more threats/removal per turn.
 - **`startingLife`** — the bot's starting life, to absorb the fact that it's facing 4 players at once.
 - **`playerCount`** — number of players at the table; saved for reference but not used in any engine calculation (since players are treated collectively, not individually).
+- **`startingPlayersLife`** — initial value of the shared players' life counter (`GameState.playersLife`). Not a difficulty lever in any engine sense — it's not read by any effect — just the starting point for the convenience counter shown in `GameBoard`.

@@ -1,6 +1,7 @@
-import type { DeckConfig, GameState } from '../types'
+import type { DeckConfig, DeckSource, GameState } from '../types'
 
 const DECK_KEY = 'horde-deck-config-v1'
+const DECK_SOURCE_KEY = 'horde-deck-source-v1'
 const GAME_KEY = 'horde-game-state-v1'
 
 export function loadDeckConfig(): DeckConfig | null {
@@ -14,6 +15,15 @@ export function loadDeckConfig(): DeckConfig | null {
 
 export function saveDeckConfig(deck: DeckConfig): void {
   localStorage.setItem(DECK_KEY, JSON.stringify(deck))
+}
+
+/** Separate from `DeckConfig` (which is also the export/import JSON schema, documented in docs/deck-format.md) — where the deck came from isn't part of that portable format. */
+export function loadDeckSource(): DeckSource | null {
+  return localStorage.getItem(DECK_SOURCE_KEY)
+}
+
+export function saveDeckSource(source: DeckSource): void {
+  localStorage.setItem(DECK_SOURCE_KEY, source)
 }
 
 export function loadGameState(): GameState | null {

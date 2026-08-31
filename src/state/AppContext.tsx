@@ -1,8 +1,9 @@
 import { createContext, useContext, useEffect, useReducer, type ReactNode } from 'react'
 import { appReducer, type AppAction, type AppState } from './gameReducer'
-import { loadDeckConfig, loadGameState, saveDeckConfig, saveGameState } from './persistence'
-import { defaultDeck } from '../data/defaultDeck'
+import { loadDeckConfig, loadDeckSource, loadGameState, saveDeckConfig, saveDeckSource, saveGameState } from './persistence'
+import { DECK_PRESETS } from '../data/presets'
 import { getCardByName } from '../scryfall/api'
+import { CUSTOM_DECK_SOURCE } from '../types'
 
 interface AppContextValue {
   state: AppState
@@ -12,9 +13,14 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null)
 
 function loadInitialState(): AppState {
-  const deck = loadDeckConfig()?.cards ?? defaultDeck
+  const savedDeck = loadDeckConfig()
+  const deck = savedDeck?.cards ?? DECK_PRESETS[0].deck
+  // A saved deck with no recorded source predates this field — treat it as Custom (freely
+  // editable) rather than guessing it matches a preset, since that's what it already was in
+  // practice (nothing enforced presets being read-only before this).
+  const deckSource = loadDeckSource() ?? (savedDeck ? CUSTOM_DECK_SOURCE : DECK_PRESETS[0].label)
   const game = loadGameState()
-  return { deck, game }
+  return { deck, deckSource, game }
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -23,6 +29,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     saveDeckConfig({ cards: state.deck })
   }, [state.deck])
+
+  useEffect(() => {
+    saveDeckSource(state.deckSource)
+  }, [state.deckSource])
 
   useEffect(() => {
     saveGameState(state.game)

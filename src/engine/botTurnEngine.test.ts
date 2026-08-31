@@ -19,6 +19,11 @@ const gainLifeCard: DeckCardConfig = { id: 'g1', scryfallName: 'Rest for the Wea
 
 const deckSnapshot = [creatureCard, removalCard, gainLifeCard, hasteCreatureCard]
 
+// All test cards default to impact 1 (undefined -> 1), which weighs 1 regardless of turn/difficulty
+// (1 raised to any power is 1) — so with a `rng` that always returns 0, weighted draw always picks
+// the first remaining card, reproducing the old "top of library" order deterministically.
+const deterministicContext = { deckSnapshot, turnNumber: 1, playerCount: 4, difficulty: 'normal' as const, rng: () => 0 }
+
 function makeBot(overrides: Partial<BotState> = {}): BotState {
   return {
     life: 20,
@@ -39,9 +44,27 @@ function makeBot(overrides: Partial<BotState> = {}): BotState {
 describe('drawForTurn', () => {
   it('moves the top N cards from library to hand', () => {
     const bot = makeBot()
-    const drafted = drawForTurn(bot, 3)
+    const drafted = drawForTurn(bot, 3, deterministicContext)
     expect(drafted.hand.map((c) => c.deckCardId)).toEqual(['c1', 'r1', 'g1'])
     expect(drafted.library.map((c) => c.deckCardId)).toEqual(['c2'])
+  })
+
+  it('weighs each remaining card by impact instead of always drawing from the front', () => {
+    // On turn 1 at normal difficulty, an impact-3 card weighs far less than an impact-1 one (see
+    // difficulty.test.ts) — so an rng value that lands just past the impact-1 card's slice of the
+    // cumulative distribution should still land on the impact-3 card, even though it's second in
+    // the array (i.e. draw order is no longer just array order once impacts differ).
+    const lowImpactCard: DeckCardConfig = { id: 'low', scryfallName: 'Low', impact: 1, effect: { kind: 'CreateCreature', count: 1, power: 1, toughness: 1, keywords: [] } }
+    const highImpactCard: DeckCardConfig = { id: 'high', scryfallName: 'High', impact: 3, effect: { kind: 'CreateCreature', count: 1, power: 8, toughness: 8, keywords: [] } }
+    const bot = makeBot({
+      library: [
+        { instanceId: 'i-low', deckCardId: 'low' },
+        { instanceId: 'i-high', deckCardId: 'high' },
+      ],
+    })
+    const context = { deckSnapshot: [lowImpactCard, highImpactCard], turnNumber: 1, playerCount: 4, difficulty: 'normal' as const, rng: () => 0.999999 }
+    const drafted = drawForTurn(bot, 1, context)
+    expect(drafted.hand.map((c) => c.deckCardId)).toEqual(['high'])
   })
 })
 
@@ -158,7 +181,7 @@ describe('drawNextTurnHand', () => {
       { instanceId: 'i-g1', deckCardId: 'g1' },
       { instanceId: 'i-c2', deckCardId: 'c2' },
     ]
-    const result = drawNextTurnHand(library, 3, 0)
+    const result = drawNextTurnHand(library, 3, 0, deterministicContext)
     expect(result.hand.map((c) => c.deckCardId)).toEqual(['c1', 'r1', 'g1'])
     expect(result.library.map((c) => c.deckCardId)).toEqual(['c2'])
     expect(result.logLine?.text).toContain('draws 3 cards for the next turn')
@@ -170,13 +193,13 @@ describe('drawNextTurnHand', () => {
       { instanceId: 'i-r1', deckCardId: 'r1' },
       { instanceId: 'i-g1', deckCardId: 'g1' },
     ]
-    const result = drawNextTurnHand(library, 1, 2)
+    const result = drawNextTurnHand(library, 1, 2, deterministicContext)
     expect(result.hand).toHaveLength(3)
     expect(result.logLine?.text).toContain('1 normal + 2 extra')
   })
 
   it('returns no log line and an empty hand when the library is already empty', () => {
-    const result = drawNextTurnHand([], 3, 0)
+    const result = drawNextTurnHand([], 3, 0, deterministicContext)
     expect(result.hand).toEqual([])
     expect(result.logLine).toBeNull()
   })

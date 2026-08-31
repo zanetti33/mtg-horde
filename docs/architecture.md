@@ -2,7 +2,7 @@
 
 ## Why no backend
 
-The app is meant to be used from a single shared device at the table (a laptop or tablet everyone looks at). There's no need to sync state across multiple devices, so all the state lives in the browser and is saved to `localStorage`. The only network call the app makes is to the [public Scryfall API](https://scryfall.com/docs/api), used to fetch each card's name/cost/image (Scryfall supports CORS for direct browser use).
+The app is meant to be used from a single shared device at the table (a laptop or tablet everyone looks at). There's no need to sync state across multiple devices, so all the state lives in the browser and is saved to `localStorage`. The only network call the app makes at runtime is to the [public Scryfall API](https://scryfall.com/docs/api) (Scryfall supports CORS for direct browser use), and only for cards added through the deck builder — the two preset decks' card data/images are bundled into the app itself (see "Local card bundle" below), so a fresh session never needs it just to start a game.
 
 ## Stack
 
@@ -22,6 +22,7 @@ src/
   scryfall/
     api.ts                    Scryfall client: autocomplete, search by name, localStorage cache,
                                serialized request queue to respect Scryfall's rate limit
+    CREDITS.md                Required Scryfall/Wizards of the Coast attribution
 
   engine/                     Pure logic, no React — tested with Vitest
     templates.ts               Resolution of numeric parameters (fixed or query-based) and of the
@@ -39,9 +40,19 @@ src/
     persistence.ts               localStorage read/write, JSON export/import
 
   data/
-    defaultDeck.ts               The prebuilt Horde deck (see game-design.md)
+    zombieDeck.ts / dinosaurDeck.ts  The two prebuilt decks (see game-design.md)
+    presets.ts                   DECK_PRESETS list shown in SetupScreen
+    attachLocalScryfallData.ts   Attaches bundled Scryfall data to a preset deck's cards
+    scryfallCache.ts             Generated — see "Local card bundle" below
+    scryfallCache.store.json     Generated — persistent source of truth for scryfallCache.ts
 
   components/                  UI (see below)
+
+scripts/
+  fetch-card-assets.mjs        Node script that builds the local card bundle (see below)
+
+public/
+  cards/                       Generated — bundled card images (see below)
 ```
 
 ### UI components
@@ -85,3 +96,16 @@ The deck builder also offers JSON export/import (`downloadJSON` / `readJSONFile`
 The first version hydrated missing Scryfall data with a `useEffect` reacting to `state.deck`: every time a card was successfully hydrated, `state.deck` changed reference, which re-triggered the effect for the cards still missing data. The problem: the "old" (superseded) pass kept fetching in the background regardless — only its final `dispatch` was skipped — so each new pass piled on top of the previous one instead of replacing it. The result was dozens of duplicate requests to Scryfall within a few seconds, enough to trip their rate limit and leave some cards permanently without an image for the session.
 
 The fix adopted: startup hydration runs **exactly once** (`useEffect` with an empty dependency array, see `AppContext.tsx`), over a fixed snapshot of the deck loaded at startup — it no longer reacts to its own side effects. Cards added later from the deck builder are instead resolved **before** being added to state (`AddCardForm.addCard` in `DeckBuilder.tsx` calls `getCardByName` and waits for the result before dispatching), so no extra reactivity is needed there. On top of that, the Scryfall client (`scryfall/api.ts`) uses a real request queue (a promise chain), not just a "time elapsed since last call" check — the latter isn't enough to serialize concurrent calls (e.g. React StrictMode's double-invoke of effects in development).
+
+## Local card bundle
+
+The two preset decks (`zombieDeck.ts`, `dinosaurDeck.ts`) use a fixed, known set of real cards, so their Scryfall data/images are fetched once ahead of time and committed to the repo instead of being requested at runtime:
+
+- `scripts/fetch-card-assets.mjs` extracts every `scryfallName` referenced in the two deck files, resolves each against the Scryfall API (same fuzzy-name lookup as `scryfall/api.ts`), and writes:
+  - `public/cards/<scryfallId>.jpg` — the card image, unmodified, served as a static asset.
+  - `src/data/scryfallCache.store.json` — the persistent source of truth (queried name → resolved data), so re-running the script only fetches names not already in the store instead of re-downloading everything.
+  - `src/data/scryfallCache.ts` — regenerated from the store on every run; exports `LOCAL_SCRYFALL_CACHE`, keyed by the same lowercased/trimmed name used by `cacheKeyFor` in `scryfall/api.ts`. Image URLs are resolved through `import.meta.env.BASE_URL` so they work both in dev (`/`) and on the GitHub Pages build (`/mtg-horde/`).
+- `src/data/attachLocalScryfallData.ts` attaches a matching `LOCAL_SCRYFALL_CACHE` entry to each card when a preset deck module loads. Since the card already has `.scryfall` populated by the time `hydrateMissingScryfallData` / the `AppContext` startup effect run, neither one issues a network request for it — they only ever hit the live API for cards missing from the bundle (e.g. a card just added to a preset before the next `fetch-cards` run) or added through the deck builder.
+- Run `npm run fetch-cards` after adding a new card to a preset deck. It's safe to re-run any time — already-cached names are skipped; pass `--force` to refresh everything (e.g. if Scryfall updates an image).
+
+Card data/images are cached and redistributed under Scryfall's data usage guidelines and the Wizards of the Coast Fan Content Policy — see `scryfall/CREDITS.md` for the attribution text (also shown in the app footer).

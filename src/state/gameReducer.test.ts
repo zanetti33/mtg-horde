@@ -20,10 +20,12 @@ function makeState(game: Partial<GameState['bot']>): AppState {
   }
   return {
     deck: deckSnapshot,
+    deckSource: 'Custom',
     game: {
-      config: { playerCount: 4, drawPerTurn: 2, startingLife: 20 },
+      config: { playerCount: 4, difficulty: 'normal' },
       deckSnapshot,
       bot,
+      playersLife: 20,
       turnLog: [],
       turnNumber: 1,
       phase: 'idle',
@@ -145,5 +147,29 @@ describe('BEGIN_BOT_TURN / RESOLVE_TURN_CARD (card-by-card reveal)', () => {
     expect(result.game?.phase).toBe('awaitingAttackOutcome')
     expect(result.game?.pendingAttackers).toHaveLength(1)
     expect(result.game?.bot.hand).toEqual([{ instanceId: 'lib1', deckCardId: 'c2' }])
+  })
+})
+
+describe('START_GAME', () => {
+  it('inflates a small curated deck up to 50 cards per player (mill protection)', () => {
+    const state: AppState = { deck: deckSnapshot, deckSource: 'Custom', game: null }
+    const result = appReducer(state, { type: 'START_GAME', config: { playerCount: 4, difficulty: 'normal' } })
+    const totalCards = (result.game?.bot.library.length ?? 0) + (result.game?.bot.hand.length ?? 0)
+    expect(totalCards).toBe(200)
+  })
+
+  it('scales the library size with player count', () => {
+    const state: AppState = { deck: deckSnapshot, deckSource: 'Custom', game: null }
+    const result = appReducer(state, { type: 'START_GAME', config: { playerCount: 8, difficulty: 'normal' } })
+    const totalCards = (result.game?.bot.library.length ?? 0) + (result.game?.bot.hand.length ?? 0)
+    expect(totalCards).toBe(400)
+  })
+
+  it('trims a curated deck bigger than the target down to it', () => {
+    const bigDeck: DeckCardConfig[] = Array.from({ length: 300 }, (_, i) => ({ ...creatureCard, id: `big-${i}` }))
+    const state: AppState = { deck: bigDeck, deckSource: 'Custom', game: null }
+    const result = appReducer(state, { type: 'START_GAME', config: { playerCount: 4, difficulty: 'normal' } })
+    const totalCards = (result.game?.bot.library.length ?? 0) + (result.game?.bot.hand.length ?? 0)
+    expect(totalCards).toBe(200)
   })
 })

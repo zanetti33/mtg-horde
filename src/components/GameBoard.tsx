@@ -6,6 +6,7 @@ import { TurnLog } from './TurnLog'
 import { AttackOutcome } from './AttackOutcome'
 import { QueryInputModal } from './QueryInputModal'
 import { CurrentCardReveal } from './CurrentCardReveal'
+import { LifeCounter } from './LifeCounter'
 
 export function GameBoard() {
   const { state, dispatch } = useAppState()
@@ -41,21 +42,29 @@ export function GameBoard() {
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <button
-          onClick={playBotTurn}
-          disabled={!canPlayTurn}
-          className="rounded bg-emerald-500 px-5 py-2.5 font-medium text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
-        >
-          Play bot turn
-        </button>
-        <button
-          onClick={() => {
-            if (confirm('End the game and return to setup?')) dispatch({ type: 'RESET_GAME' })
-          }}
-          className="rounded border border-slate-700 px-3 py-1.5 text-sm text-slate-400 hover:bg-slate-800"
-        >
-          End game
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={playBotTurn}
+            disabled={!canPlayTurn}
+            className="rounded bg-emerald-500 px-5 py-2.5 font-medium text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+          >
+            Play bot turn
+          </button>
+          <button
+            onClick={() => {
+              if (confirm('End the game and return to setup?')) dispatch({ type: 'RESET_GAME' })
+            }}
+            className="rounded border border-slate-700 px-3 py-1.5 text-sm text-slate-400 hover:bg-slate-800"
+          >
+            End game
+          </button>
+        </div>
+
+        <LifeCounter
+          label="Players' shared life"
+          value={game.playersLife}
+          onChange={(life) => dispatch({ type: 'SET_PLAYERS_LIFE', life })}
+        />
       </div>
 
       {game.phase === 'resolvingTurn' && <CurrentCardReveal />}

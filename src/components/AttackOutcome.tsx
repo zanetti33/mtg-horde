@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAppState } from '../state/AppContext'
+import { CardThumbnail } from './CardThumbnail'
 
 export function AttackOutcome() {
   const { state, dispatch } = useAppState()
@@ -41,7 +42,7 @@ export function AttackOutcome() {
                 isDead ? 'border-red-700 bg-red-950/30' : 'border-slate-700 bg-slate-950/60 hover:border-emerald-600'
               }`}
             >
-              {a.imageUrl && <img src={a.imageUrl} alt="" className={`mb-1 w-full rounded transition ${isDead ? 'opacity-40 grayscale' : ''}`} />}
+              {a.imageUrl && <CardThumbnail imageUrl={a.imageUrl} alt="" className={`mb-1 w-full rounded transition ${isDead ? 'opacity-40 grayscale' : ''}`} />}
               <p className={`text-sm font-medium ${isDead ? 'text-red-300 line-through' : 'text-slate-100'}`}>{a.name}</p>
               <p className="text-xs text-slate-400">
                 {a.power}/{a.toughness}

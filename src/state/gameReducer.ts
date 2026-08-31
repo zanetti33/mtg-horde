@@ -1,4 +1,5 @@
-import type { BattlefieldCreature, BotState, CardDestination, CardRef, DeckCardConfig, EffectParams, GameConfig, GameState, LibraryPosition, ScryfallCardData, TurnLogEntry, Zone } from '../types'
+import { CUSTOM_DECK_SOURCE } from '../types'
+import type { BattlefieldCreature, BotState, CardDestination, CardRef, DeckCardConfig, DeckSource, EffectParams, GameConfig, GameState, LibraryPosition, ScryfallCardData, TurnLogEntry, Zone } from '../types'
 import {
   counterSingleCard,
   declareAttackers,
@@ -10,6 +11,7 @@ import {
   resolveSingleCard,
 } from '../engine/botTurnEngine'
 import { buildBattlefieldCreatureFromCard } from '../engine/templates'
+import { computeBaseDrawCount, computeStartingBotLife, computeSuggestedPlayersLife, computeTargetLibrarySize } from '../engine/difficulty'
 
 /** Inserts `ref` into `library` at the given position. `nth` is 1-indexed from the top and clamped to the array bounds. */
 function insertIntoLibrary(library: CardRef[], ref: CardRef, position: LibraryPosition): CardRef[] {
@@ -27,24 +29,29 @@ function insertIntoLibrary(library: CardRef[], ref: CardRef, position: LibraryPo
 
 export interface AppState {
   deck: DeckCardConfig[]
+  /** See `DeckSource` in types.ts: a preset label (read-only in the deck builder) or `CUSTOM_DECK_SOURCE` (freely editable). */
+  deckSource: DeckSource
   game: GameState | null
 }
 
 export type AppAction =
-  | { type: 'SET_DECK'; deck: DeckCardConfig[] }
+  | { type: 'SET_DECK'; deck: DeckCardConfig[]; source: DeckSource }
+  | { type: 'UNLOCK_CUSTOM_DECK' }
   | { type: 'ADD_DECK_CARD'; card: DeckCardConfig }
   | { type: 'REMOVE_DECK_CARD'; id: string }
   | { type: 'UPDATE_DECK_CARD_EFFECT'; id: string; effect: EffectParams }
   | { type: 'UPDATE_DECK_CARD_ERRATA'; id: string; errata: string | undefined }
+  | { type: 'UPDATE_DECK_CARD_IMPACT'; id: string; impact: number }
   | { type: 'UPDATE_DECK_CARD_SCRYFALL'; id: string; scryfall: ScryfallCardData }
   | { type: 'START_GAME'; config: GameConfig }
   | { type: 'BEGIN_BOT_TURN'; queryAnswers: Record<string, number> }
   | { type: 'RESOLVE_TURN_CARD'; countered: boolean }
   | { type: 'CONFIRM_ATTACK_OUTCOME'; survivingInstanceIds: string[] }
   | { type: 'SET_BOT_LIFE'; life: number }
+  | { type: 'SET_PLAYERS_LIFE'; life: number }
   | { type: 'MOVE_CARD'; instanceId: string; origin: Zone; destination: CardDestination }
   | { type: 'RESET_GAME' }
-  | { type: 'LOAD_STATE'; deck: DeckCardConfig[]; game: GameState | null }
+  | { type: 'LOAD_STATE'; deck: DeckCardConfig[]; deckSource: DeckSource; game: GameState | null }
 
 function shuffle<T>(items: T[]): T[] {
   const result = [...items]
@@ -117,24 +124,44 @@ function moveCard(bot: BotState, deckSnapshot: DeckCardConfig[], instanceId: str
   }
 }
 
+/**
+ * Builds the shuffled starting library at exactly `computeTargetLibrarySize(playerCount)` card
+ * instances, whatever the curated deck's own size is: cycling round-robin through it (every card
+ * duplicated the same number of times, save for a small remainder) if it's smaller than the target,
+ * or drawing a random subset of it if it's bigger. Reuses each `DeckCardConfig` across several
+ * `CardRef`s rather than cloning entries into `deckSnapshot` — nothing besides this function needs to
+ * distinguish physical copies of the same card by anything other than `instanceId`. The curated deck
+ * is shuffled before cycling so a bigger-than-target deck gets trimmed to a random subset rather than
+ * just its first N cards in authoring order.
+ */
+function buildStartingLibrary(deck: DeckCardConfig[], playerCount: number): CardRef[] {
+  if (deck.length === 0) return []
+  const targetSize = Math.round(computeTargetLibrarySize(playerCount))
+  const shuffledDeck = shuffle(deck)
+  const cards = Array.from({ length: targetSize }, (_, i) => shuffledDeck[i % shuffledDeck.length])
+  return shuffle(cards).map((card) => ({ instanceId: newInstanceId(), deckCardId: card.id }))
+}
+
 function startGame(deck: DeckCardConfig[], config: GameConfig): GameState {
-  const library: CardRef[] = shuffle(deck).map((card) => ({
-    instanceId: newInstanceId(),
-    deckCardId: card.id,
-  }))
+  const library = buildStartingLibrary(deck, config.playerCount)
 
   // Drawn immediately, same as the hand drawn at the end of every later turn (see
   // resolveBotTurn): the players' very first turns precede the bot's first turn, so
   // the bot's opening hand needs to already be sitting there for them to interact with.
-  const bot: BotState = drawForTurn(
-    { life: config.startingLife, library, hand: [], battlefield: [], graveyard: [], exile: [] },
-    config.drawPerTurn,
-  )
+  const openingDrawCount = computeBaseDrawCount(1, config.playerCount, config.difficulty)
+  const startingLife = computeStartingBotLife(config.playerCount)
+  const bot: BotState = drawForTurn({ life: startingLife, library, hand: [], battlefield: [], graveyard: [], exile: [] }, openingDrawCount, {
+    deckSnapshot: deck,
+    turnNumber: 1,
+    playerCount: config.playerCount,
+    difficulty: config.difficulty,
+  })
 
   return {
     config,
     deckSnapshot: deck,
     bot,
+    playersLife: computeSuggestedPlayersLife(config.playerCount),
     turnLog: [],
     turnNumber: 0,
     phase: 'idle',
@@ -146,8 +173,16 @@ function startGame(deck: DeckCardConfig[], config: GameConfig): GameState {
 
 /** Ends a bot turn once its card queue is empty: declares attackers, draws the next turn's hand, and recomputes status. Called either right after BEGIN_BOT_TURN (empty hand — nothing to reveal) or from the last RESOLVE_TURN_CARD. */
 function finalizeBotTurn(game: GameState, bot: BotState, turnLogSoFar: TurnLogEntry[], extraDraws: number): GameState {
+  const nextTurnNumber = game.turnNumber + 1
+  const baseDrawCount = computeBaseDrawCount(nextTurnNumber, game.config.playerCount, game.config.difficulty)
   const { attackers, logLine: attackLogLine } = declareAttackers(bot.battlefield)
-  const { hand, library, logLine: drawLogLine } = drawNextTurnHand(bot.library, game.config.drawPerTurn, extraDraws)
+  const { hand, library, logLine: drawLogLine } = drawNextTurnHand(bot.library, baseDrawCount, extraDraws, {
+    deckSnapshot: game.deckSnapshot,
+    turnNumber: nextTurnNumber,
+    playerCount: game.config.playerCount,
+    difficulty: game.config.difficulty,
+    bonusDrawCount: extraDraws,
+  })
   const turnLog = drawLogLine ? [...turnLogSoFar, attackLogLine, drawLogLine] : [...turnLogSoFar, attackLogLine]
   const newBot: BotState = { ...bot, hand, library }
 
@@ -166,7 +201,10 @@ function finalizeBotTurn(game: GameState, bot: BotState, turnLogSoFar: TurnLogEn
 export function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case 'SET_DECK':
-      return { ...state, deck: action.deck }
+      return { ...state, deck: action.deck, deckSource: action.source }
+
+    case 'UNLOCK_CUSTOM_DECK':
+      return { ...state, deckSource: CUSTOM_DECK_SOURCE }
 
     case 'ADD_DECK_CARD':
       return { ...state, deck: [...state.deck, action.card] }
@@ -179,6 +217,9 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 
     case 'UPDATE_DECK_CARD_ERRATA':
       return { ...state, deck: state.deck.map((c) => (c.id === action.id ? { ...c, errata: action.errata } : c)) }
+
+    case 'UPDATE_DECK_CARD_IMPACT':
+      return { ...state, deck: state.deck.map((c) => (c.id === action.id ? { ...c, impact: action.impact } : c)) }
 
     case 'UPDATE_DECK_CARD_SCRYFALL':
       return { ...state, deck: state.deck.map((c) => (c.id === action.id ? { ...c, scryfall: action.scryfall } : c)) }
@@ -254,6 +295,11 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, game: { ...state.game, bot, status: recomputeStatus(bot) } }
     }
 
+    case 'SET_PLAYERS_LIFE': {
+      if (!state.game) return state
+      return { ...state, game: { ...state.game, playersLife: action.life } }
+    }
+
     case 'MOVE_CARD': {
       if (!state.game) return state
       const bot = moveCard(state.game.bot, state.game.deckSnapshot, action.instanceId, action.origin, action.destination)
@@ -264,11 +310,11 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, game: null }
 
     case 'LOAD_STATE':
-      return { deck: action.deck, game: action.game }
+      return { deck: action.deck, deckSource: action.deckSource, game: action.game }
 
     default:
       return state
   }
 }
 
-export const initialAppState: AppState = { deck: [], game: null }
+export const initialAppState: AppState = { deck: [], deckSource: CUSTOM_DECK_SOURCE, game: null }

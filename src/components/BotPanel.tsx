@@ -4,6 +4,8 @@ import { summarizeEffect } from '../engine/effectSummary'
 import { KEYWORD_LABELS } from '../types'
 import type { CardDestination, CardRef, DeckCardConfig, Zone } from '../types'
 import { CardContextMenu, type ContextMenuOption } from './CardContextMenu'
+import { CardThumbnail } from './CardThumbnail'
+import { LifeCounter } from './LifeCounter'
 
 const REF_ZONE_LABELS: Record<'hand' | 'graveyard' | 'exile' | 'library', string> = {
   hand: 'Hand',
@@ -104,15 +106,7 @@ export function BotPanel() {
   return (
     <div className="space-y-6 rounded-lg border border-slate-800 bg-slate-900/40 p-4">
       <div className="flex flex-wrap items-center gap-4">
-        <label className="flex items-center gap-2">
-          <span className="text-sm font-medium text-slate-300">Bot life</span>
-          <input
-            type="number"
-            value={bot.life}
-            onChange={(e) => dispatch({ type: 'SET_BOT_LIFE', life: Number(e.target.value) })}
-            className="w-20 rounded border border-slate-700 bg-slate-950 px-2 py-1 text-lg font-semibold text-slate-100"
-          />
-        </label>
+        <LifeCounter label="Bot life" value={bot.life} onChange={(life) => dispatch({ type: 'SET_BOT_LIFE', life })} />
       </div>
 
       <div>
@@ -131,7 +125,11 @@ export function BotPanel() {
                 className="group relative overflow-hidden rounded border border-slate-800 bg-slate-950/60 p-2 text-left transition hover:border-red-700"
               >
                 {creature.imageUrl && (
-                  <img src={creature.imageUrl} alt={creature.name} className="mb-1 w-full rounded transition group-hover:opacity-40 group-hover:grayscale" />
+                  <CardThumbnail
+                    imageUrl={creature.imageUrl}
+                    alt={creature.name}
+                    className="mb-1 w-full rounded transition group-hover:opacity-40 group-hover:grayscale"
+                  />
                 )}
                 <p className="text-sm font-medium text-slate-100">{creature.name}</p>
                 <p className="text-xs text-slate-400">
@@ -197,7 +195,7 @@ function RefZoneSection({
                 onContextMenu={(e) => onOpenMenu(ref.instanceId, e)}
                 className="overflow-hidden rounded border border-slate-800 bg-slate-950/60 p-2 text-left transition hover:border-slate-600"
               >
-                {card?.scryfall?.imageUrl && <img src={card.scryfall.imageUrl} alt={card.scryfallName} className="mb-1 w-full rounded" />}
+                {card?.scryfall?.imageUrl && <CardThumbnail imageUrl={card.scryfall.imageUrl} alt={card.scryfallName} className="mb-1 w-full rounded" />}
                 <p className="text-sm font-medium text-slate-100">{card?.scryfallName ?? '(unknown card)'}</p>
                 {card && <p className="text-xs text-slate-400">{summarizeEffect(card.effect)}</p>}
               </button>
