@@ -29,16 +29,16 @@ export const ALL_KEYWORDS: Keyword[] = [
 ]
 
 export const KEYWORD_LABELS: Record<Keyword, string> = {
-  flying: 'Volare',
-  trample: 'Travolgere',
-  deathtouch: 'Tocco letale',
-  lifelink: 'Legame vitale',
-  firststrike: 'Colpire per primo',
-  doublestrike: 'Doppio colpo',
-  menace: 'Minaccia',
-  vigilance: 'Vigilanza',
-  reach: 'Portata',
-  haste: 'Prontezza',
+  flying: 'Flying',
+  trample: 'Trample',
+  deathtouch: 'Deathtouch',
+  lifelink: 'Lifelink',
+  firststrike: 'First strike',
+  doublestrike: 'Double strike',
+  menace: 'Menace',
+  vigilance: 'Vigilance',
+  reach: 'Reach',
+  haste: 'Haste',
 }
 
 /** Cached subset of Scryfall's card object — only what the UI/engine needs. */
@@ -165,7 +165,7 @@ export interface DeckCardConfig {
    * mode can't express the correct rule on its own — this field lets the
    * deck author spell out, in plain text, how the table should resolve it
    * instead. Used sparingly: most cards should map cleanly onto a template
-   * per the usual deck-curation criteria (see docs/design-di-gioco.md).
+   * per the usual deck-curation criteria (see docs/game-design.md).
    */
   errata?: string
 }
@@ -206,12 +206,24 @@ export interface BotState {
 /** Where in the library a card goes — `nth` is 1-indexed from the top (1 = top). */
 export type LibraryPosition = { kind: 'top' } | { kind: 'bottom' } | { kind: 'nth'; n: number }
 
-/** Where a battlefield creature can be sent when removed. Tokens ignore this — they cease to exist regardless. */
-export type BattlefieldDestination =
+/** One of the bot's own tracked zones. */
+export type Zone = 'library' | 'hand' | 'battlefield' | 'graveyard' | 'exile'
+
+/**
+ * Where a bot card can be sent, from any zone it currently sits in — the
+ * operator can reflect any physical zone change (mill, bounce, reanimation,
+ * a corrected mistake, ...). Tokens ignore this when leaving the
+ * battlefield — they cease to exist regardless of the chosen destination.
+ * `battlefield` is only reachable for cards whose effect is `CreateCreature`
+ * (see `buildBattlefieldCreatureFromCard` in templates.ts) — everything else
+ * has no permanent body to put into play.
+ */
+export type CardDestination =
   | { zone: 'graveyard' }
   | { zone: 'hand' }
   | { zone: 'exile' }
   | { zone: 'library'; position: LibraryPosition }
+  | { zone: 'battlefield' }
 
 export interface GameConfig {
   playerCount: number
@@ -219,13 +231,31 @@ export interface GameConfig {
   startingLife: number
 }
 
-export type GamePhase = 'idle' | 'awaitingAttackOutcome'
+/**
+ * `resolvingTurn`: the bot's turn is being revealed one card at a time (see
+ * `PendingTurn`) — the table gets to decide whether to respond to each card
+ * before the next one is shown, instead of seeing the whole turn at once.
+ */
+export type GamePhase = 'idle' | 'resolvingTurn' | 'awaitingAttackOutcome'
 export type GameStatus = 'ongoing' | 'botDefeated'
 
 /** One line of the bot's turn report; carries the card's image when the line is tied to a specific card. */
 export interface TurnLogEntry {
   text: string
   imageUrl?: string
+}
+
+/**
+ * Bookkeeping for a bot turn currently being revealed card by card. The
+ * query answers are collected once, up front, and reused as each card in
+ * `bot.hand` (which doubles as the turn's remaining queue — see
+ * `orderHandForResolution` in botTurnEngine.ts) is individually resolved or
+ * countered. `extraDraws` accumulates any `DrawExtraBot` bonus draws seen so
+ * far, folded into the next turn's hand size once the queue empties.
+ */
+export interface PendingTurn {
+  queryAnswers: Record<string, number>
+  extraDraws: number
 }
 
 export interface GameState {
@@ -238,4 +268,5 @@ export interface GameState {
   phase: GamePhase
   status: GameStatus
   pendingAttackers: BattlefieldCreature[] | null
+  pendingTurn: PendingTurn | null
 }

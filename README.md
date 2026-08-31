@@ -1,50 +1,50 @@
 # Horde Bot
 
-Webapp companion per partite di Magic: The Gathering in formato **Horde**: 4 giocatori reali contro 1 bot. L'app non sostituisce le regole di Magic — i giocatori giocano i propri turni fisicamente, come sempre. Il suo unico compito è gestire il turno del bot: tenere lo stato del suo mazzo/board/vita e decidere, in modo leggibile, cosa fa a ogni turno (creature evocate, rimozioni, danni, attacchi).
+Companion webapp for Magic: The Gathering games in **Horde** format: 4 real players against 1 bot. The app doesn't replace Magic's rules — players play their own turns physically, as always. Its only job is to manage the bot's turn: keep track of its deck/board/life state and decide, in a readable way, what it does each turn (creatures summoned, removal, damage, attacks).
 
-## Come funziona in breve
+## How it works in short
 
-- **Nessun backend.** Tutto gira nel browser, lo stato è salvato in `localStorage`.
-- **L'app traccia solo il bot** — vita, mazzo, mano, board, cimitero ed esilio. Vita e board dei 4 giocatori restano gestite fisicamente al tavolo (l'app non le tocca).
-- **Le carte del bot sono "template", non testo Oracle.** Ogni carta del mazzo del bot è associata a un effetto semplice (evoca una creatura, rimuovi una minaccia, infliggi danno, ecc.) con pochi parametri — non c'è parsing del testo delle carte. Questo permette di usare qualsiasi carta reale, anche complessa, scegliendo l'effetto che le si avvicina di più.
-- I dati delle carte (nome, costo, immagine) vengono recuperati dall'[API di Scryfall](https://scryfall.com/docs/api).
+- **No backend.** Everything runs in the browser, state is saved in `localStorage`.
+- **The app tracks only the bot** — life, deck, hand, board, graveyard and exile. The 4 players' life and board stay managed physically at the table (the app doesn't touch them).
+- **The bot's cards are "templates", not Oracle text.** Each card in the bot's deck is mapped to a simple effect (summon a creature, remove a threat, deal damage, etc.) with a handful of parameters — there's no card text parsing. This lets you use any real card, even a complex one, by picking the effect that best approximates it.
+- Card data (name, cost, image) is fetched from the [Scryfall API](https://scryfall.com/docs/api).
 
-Per i dettagli di design vedi la cartella [docs/](docs/).
+For design details see the [docs/](docs/) folder.
 
-## Avvio rapido
+## Quick start
 
-Prerequisiti: Node.js 20.x (qualsiasi patch — le dipendenze sono fissate apposta per evitare il requisito Node ≥20.19 di alcune versioni più recenti dei tool).
+Prerequisites: Node.js 20.x (any patch — dependencies are pinned on purpose to avoid the Node ≥20.19 requirement of some newer tool versions).
 
 ```bash
 npm install
 npm run dev
 ```
 
-Apri http://localhost:5173.
+Open http://localhost:5173.
 
-## Script disponibili
+## Available scripts
 
-| Comando | Cosa fa |
+| Command | What it does |
 |---|---|
-| `npm run dev` | Avvia il server di sviluppo Vite (con hot reload) |
-| `npm run build` | Typecheck (`tsc -b`) + build di produzione in `dist/` |
-| `npm run preview` | Serve la build di produzione in locale, per un ultimo controllo |
-| `npm test` | Esegue i test Vitest |
+| `npm run dev` | Starts the Vite dev server (with hot reload) |
+| `npm run build` | Typecheck (`tsc -b`) + production build in `dist/` |
+| `npm run preview` | Serves the production build locally, for a final check |
+| `npm test` | Runs the Vitest test suite |
 
-## Uso rapido dell'app
+## Quick app usage
 
-1. **Mazzo del bot** — rivedi/modifica il mazzo precompilato (o carica uno dei mazzi tematici pronti, Zombie o Dinosauri, dal pulsante "Carica mazzo precompilato"), cerca altre carte su Scryfall e assegna loro un effetto.
-2. **Partita** — imposta numero di giocatori, pescate per turno del bot e vita iniziale, poi avvia.
-3. **Gioca turno bot** — il motore pesca, risolve la mano (prima rimozioni/danni, poi creature e utility) e dichiara gli attaccanti.
-4. **Esito del combattimento** — dopo che il tavolo ha risolto i blocchi fisicamente, clicca sugli attaccanti del bot che sono morti in combattimento.
-5. **Board del bot** — durante i turni dei giocatori, click sinistro su una creatura per mandarla al cimitero (il caso più comune), click destro per scegliere un'altra destinazione (mano, mazzo, esilio).
+1. **Bot deck** — review/edit the deck, search for more cards on Scryfall and assign them an effect (and optionally a custom errata/rule).
+2. **Game** — choose the deck (the current one or one of the ready-made presets, Default/Zombie/Dinosaurs), set the number of players, the bot's draws per turn and starting life, then start. Once started, the bot's deck stays locked for the rest of the game.
+3. **Play bot turn** — the hand drawn ahead of time (removal/damage first, then creatures and utility) is revealed **one card at a time**: for each one the table sees only that card and decides whether to let it resolve or counter it, before the bot shows the next one. Once the queue is empty, attackers are declared and the hand for the next turn is drawn (visible and editable during the players' turns — useful for getting it discarded, or to "stall" the bot by putting a card into its hand).
+4. **Combat outcome** — after the table has resolved blocks physically, click on the bot's attackers that died in combat.
+5. **Bot zones** — during the players' turns, `BotPanel` shows hand, board, graveyard, exile and library: clicking a creature in play = it goes to the graveyard (the most common case), clicking any other card (in any zone) opens a menu with all possible destinations — hand, board (if it has a creature effect), graveyard, exile, deck (top/bottom/position N).
 
-## Stack tecnico
+## Tech stack
 
-Vite + React + TypeScript + Tailwind CSS. Nessun backend. Persistenza in `localStorage` (più export/import JSON). Dati carte dall'API pubblica di Scryfall. Test con Vitest.
+Vite + React + TypeScript + Tailwind CSS. No backend. Persistence in `localStorage` (plus JSON export/import). Card data from the public Scryfall API. Tests with Vitest.
 
-## Documentazione
+## Documentation
 
-- [docs/architettura.md](docs/architettura.md) — struttura del progetto, scelte tecniche, gestione dello stato
-- [docs/design-di-gioco.md](docs/design-di-gioco.md) — modello di gioco, flusso del turno, sistema di effetti/template
-- [docs/formato-mazzo.md](docs/formato-mazzo.md) — schema JSON del mazzo, per chi vuole modificarlo a mano o costruirsi strumenti esterni
+- [docs/architecture.md](docs/architecture.md) — project structure, technical choices, state management
+- [docs/game-design.md](docs/game-design.md) — game model, turn flow, effect/template system
+- [docs/deck-format.md](docs/deck-format.md) — deck JSON schema, for anyone who wants to edit it by hand or build external tools

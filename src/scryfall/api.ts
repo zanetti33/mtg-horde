@@ -89,23 +89,37 @@ export async function autocompleteCardNames(query: string): Promise<string[]> {
   }
 }
 
+// Number of attempts before giving up on a single card. Scryfall lookups routinely hit transient
+// failures unrelated to the card itself — a 429 from bursty callers (React StrictMode, a freshly
+// loaded 49-card preset), a dropped connection, a CORS preflight that flakes — and none of those
+// are worth surfacing as "this card doesn't exist." A short retry absorbs them; a genuine 404
+// (card really doesn't exist under that name) is returned immediately instead, since retrying
+// wouldn't change that.
+const MAX_FETCH_ATTEMPTS = 3
+const RETRY_DELAY_MS = 500
+
 /** Resolve a card by (fuzzy) name, using and populating the localStorage cache. */
 export async function getCardByName(name: string): Promise<ScryfallCardData | null> {
   const cache = loadCache()
   const key = cacheKeyFor(name)
   if (cache[key]) return cache[key]
 
-  try {
-    const res = await throttledFetch(`${API_BASE}/cards/named?fuzzy=${encodeURIComponent(name)}`)
-    if (!res.ok) return null
-    const raw = (await res.json()) as ScryfallCardResponse
-    const card = mapCard(raw)
-
-    cache[key] = card
-    saveCache(cache)
-    return card
-  } catch {
-    // Network error (offline, CORS, rate limit) — caller treats a null same as "not found yet".
-    return null
+  for (let attempt = 1; attempt <= MAX_FETCH_ATTEMPTS; attempt++) {
+    try {
+      const res = await throttledFetch(`${API_BASE}/cards/named?fuzzy=${encodeURIComponent(name)}`)
+      if (res.ok) {
+        const raw = (await res.json()) as ScryfallCardResponse
+        const card = mapCard(raw)
+        cache[key] = card
+        saveCache(cache)
+        return card
+      }
+      if (res.status === 404) return null // genuinely no match — retrying won't help
+      // Other non-ok statuses (429 rate limit, 5xx) are treated as transient below.
+    } catch {
+      // Network error (offline, CORS, dropped connection) — treated as transient below.
+    }
+    if (attempt < MAX_FETCH_ATTEMPTS) await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS * attempt))
   }
+  return null
 }

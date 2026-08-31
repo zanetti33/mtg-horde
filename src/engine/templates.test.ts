@@ -13,8 +13,8 @@ describe('resolveNumeric', () => {
   })
 
   it('applies multiplier and offset from a query answer', () => {
-    const c = card({ kind: 'GainLifeBot', amount: { query: 'quanti?', multiplier: 2, offset: 1 } } satisfies GainLifeBotEffect)
-    const answers = { [`card-1:quanti?`]: 5 }
+    const c = card({ kind: 'GainLifeBot', amount: { query: 'how many?', multiplier: 2, offset: 1 } } satisfies GainLifeBotEffect)
+    const answers = { [`card-1:how many?`]: 5 }
     expect(resolveNumeric(c, 'amount', answers)).toBe(11) // 5*2+1
   })
 
@@ -36,13 +36,13 @@ describe('collectQueriesForCard', () => {
     const effect: CreateCreatureEffect = {
       kind: 'CreateCreature',
       count: 1,
-      power: { query: 'Quanti artefatti?', multiplier: 1, offset: 4 },
-      toughness: { query: 'Quanti artefatti?', multiplier: 1, offset: 4 },
+      power: { query: 'How many artifacts?', multiplier: 1, offset: 4 },
+      toughness: { query: 'How many artifacts?', multiplier: 1, offset: 4 },
       keywords: [],
     }
     const prompts = collectQueriesForCard(card(effect, 'Bane of Progress'))
     expect(prompts).toHaveLength(1)
-    expect(prompts[0].prompt).toBe('Quanti artefatti?')
+    expect(prompts[0].prompt).toBe('How many artifacts?')
     expect(prompts[0].cardName).toBe('Bane of Progress')
   })
 
@@ -77,12 +77,12 @@ describe('applyCreateCreature', () => {
     const effect: CreateCreatureEffect = {
       kind: 'CreateCreature',
       count: 1,
-      power: { query: 'Quanti?', multiplier: 1, offset: 4, min: 4 },
-      toughness: { query: 'Quanti?', multiplier: 1, offset: 4, min: 4 },
+      power: { query: 'How many?', multiplier: 1, offset: 4, min: 4 },
+      toughness: { query: 'How many?', multiplier: 1, offset: 4, min: 4 },
       keywords: [],
     }
     const c = card(effect, 'Bane of Progress')
-    const result = applyCreateCreature(c, effect, { 'card-1:Quanti?': 3 })
+    const result = applyCreateCreature(c, effect, { 'card-1:How many?': 3 })
     expect(result.creatures[0].power).toBe(7)
     expect(result.creatures[0].toughness).toBe(7)
   })

@@ -24,9 +24,9 @@ export function AttackOutcome() {
 
   return (
     <div className="rounded-lg border border-amber-700/50 bg-amber-950/20 p-4">
-      <h3 className="mb-1 text-sm font-semibold text-amber-300">Esito del combattimento</h3>
+      <h3 className="mb-1 text-sm font-semibold text-amber-300">Combat outcome</h3>
       <p className="mb-3 text-sm text-slate-400">
-        Dopo che i giocatori hanno dichiarato i blocchi fisicamente, clicca le creature del bot morte in combattimento. Clicca di nuovo per annullare.
+        After the players have declared blocks physically, click the bot's creatures that died in combat. Click again to undo.
       </p>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
@@ -48,10 +48,10 @@ export function AttackOutcome() {
               </p>
 
               {isDead ? (
-                <span className="absolute right-1 top-1 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white">MORTA</span>
+                <span className="absolute right-1 top-1 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white">DEAD</span>
               ) : (
                 <span className="absolute right-1 top-1 rounded-full bg-emerald-600/90 px-1.5 py-0.5 text-[10px] font-bold text-white opacity-0 transition group-hover:opacity-100">
-                  ✕ elimina
+                  ✕ eliminate
                 </span>
               )}
             </button>
@@ -60,7 +60,7 @@ export function AttackOutcome() {
       </div>
 
       <button onClick={confirm} className="mt-4 rounded bg-emerald-500 px-4 py-1.5 text-sm font-medium text-slate-950 hover:bg-emerald-400">
-        Conferma esito
+        Confirm outcome
       </button>
     </div>
   )

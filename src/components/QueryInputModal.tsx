@@ -7,8 +7,8 @@ export function QueryInputModal({ prompts, onSubmit, onCancel }: { prompts: Quer
   return (
     <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60 p-4">
       <div className="w-full max-w-md rounded-lg border border-slate-800 bg-slate-900 p-5">
-        <h3 className="mb-1 text-lg font-semibold text-slate-100">Domande prima di risolvere il turno</h3>
-        <p className="mb-4 text-sm text-slate-400">Guarda il tavolo fisico e rispondi: queste carte scalano in base allo stato dei giocatori.</p>
+        <h3 className="mb-1 text-lg font-semibold text-slate-100">Questions before resolving the turn</h3>
+        <p className="mb-4 text-sm text-slate-400">Look at the physical table and answer: these cards scale based on the players' state.</p>
 
         <div className="space-y-3">
           {prompts.map((p) => (
@@ -29,10 +29,10 @@ export function QueryInputModal({ prompts, onSubmit, onCancel }: { prompts: Quer
 
         <div className="mt-5 flex justify-end gap-2">
           <button onClick={onCancel} className="rounded px-3 py-1.5 text-sm text-slate-400 hover:bg-slate-800">
-            Annulla
+            Cancel
           </button>
           <button onClick={() => onSubmit(answers)} className="rounded bg-emerald-500 px-4 py-1.5 text-sm font-medium text-slate-950 hover:bg-emerald-400">
-            Risolvi turno
+            Resolve turn
           </button>
         </div>
       </div>

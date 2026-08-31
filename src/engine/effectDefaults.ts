@@ -1,14 +1,14 @@
 import type { EffectParams, EffectTemplateId } from '../types'
 
 export const TEMPLATE_LABELS: Record<EffectTemplateId, string> = {
-  CreateCreature: 'Evoca creatura/token',
-  PumpBotBoard: 'Potenzia la board del bot',
-  GainLifeBot: 'Il bot guadagna vita',
-  DrawExtraBot: 'Il bot pesca carte extra',
-  RemovalInstruction: 'Rimozione (istruzione al tavolo)',
-  DamageInstruction: 'Danno (istruzione al tavolo)',
-  SacrificeInstruction: 'Sacrificio (istruzione al tavolo)',
-  DiscardInstruction: 'Scarto (istruzione al tavolo)',
+  CreateCreature: 'Summon creature/token',
+  PumpBotBoard: 'Buff the bot board',
+  GainLifeBot: 'The bot gains life',
+  DrawExtraBot: 'The bot draws extra cards',
+  RemovalInstruction: 'Removal (table instruction)',
+  DamageInstruction: 'Damage (table instruction)',
+  SacrificeInstruction: 'Sacrifice (table instruction)',
+  DiscardInstruction: 'Discard (table instruction)',
 }
 
 export function defaultEffectFor(kind: EffectTemplateId): EffectParams {

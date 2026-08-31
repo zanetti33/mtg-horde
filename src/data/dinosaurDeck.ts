@@ -1,16 +1,16 @@
 import type { DeckCardConfig } from '../types'
 
-// Mazzo a tema Dinosauri: ~49 carte reali, con più copie delle stesse carte
-// (come un vero mazzo Horde, pensato per durare molti turni). Stesso
-// criterio di curatela di zombieDeck.ts: per le istruzioni verso i giocatori
-// si scelgono solo carte reali che NON targettano (edict, spazzate
-// simmetriche "-X/-X"/"distruggi tutte"), mai rimozioni a bersaglio singolo
-// riadattate a un "potere/costituzione più alto".
+// Dinosaur-themed deck: ~49 real cards, with multiple copies of the same
+// cards (like a real Horde deck, meant to last many turns). Same
+// deck-curation criteria as zombieDeck.ts: for instructions aimed at the
+// players, only real cards that do NOT target are chosen (edicts, symmetric
+// sweepers like "-X/-X"/"destroy all"), never single-target removal
+// reinterpreted as "highest power/toughness".
 //
-// Toxic Deluge mostra invece il meccanismo già esistente per l'altro tipo di
-// scelta guidata dal tavolo: non una scelta modale (per cui serve un
-// errata), ma un valore scalare che dipende dalla board — per questo usa una
-// NumericValue "da domanda" invece di un numero fisso.
+// Toxic Deluge instead shows the mechanism that already exists for the
+// other kind of table-guided choice: not a modal choice (which needs an
+// errata), but a scalar value that depends on the board — hence it uses a
+// "query" NumericValue instead of a fixed number.
 
 let counter = 0
 function id(): string {
@@ -19,7 +19,7 @@ function id(): string {
 }
 
 export const dinosaurDeck: DeckCardConfig[] = [
-  // --- Creature -------------------------------------------------------
+  // --- Creatures -------------------------------------------------------
   { id: id(), scryfallName: 'Colossal Dreadmaw', effect: { kind: 'CreateCreature', count: 1, power: 6, toughness: 6, keywords: ['trample'] } },
   { id: id(), scryfallName: 'Colossal Dreadmaw', effect: { kind: 'CreateCreature', count: 1, power: 6, toughness: 6, keywords: ['trample'] } },
   { id: id(), scryfallName: 'Colossal Dreadmaw', effect: { kind: 'CreateCreature', count: 1, power: 6, toughness: 6, keywords: ['trample'] } },
@@ -69,8 +69,8 @@ export const dinosaurDeck: DeckCardConfig[] = [
   { id: id(), scryfallName: 'Zetalpa, Primal Dawn', effect: { kind: 'CreateCreature', count: 1, power: 8, toughness: 8, keywords: ['flying', 'firststrike', 'vigilance'] } },
   { id: id(), scryfallName: 'Etali, Primal Storm', effect: { kind: 'CreateCreature', count: 1, power: 6, toughness: 5, keywords: ['trample'] } },
 
-  // --- Rimozioni / danno / sacrificio (istruzioni per il tavolo, solo
-  // effetti non a bersaglio) ---------------------------------------------
+  // --- Removal / damage / sacrifice (table instructions, only
+  // non-targeted effects) -------------------------------------------------
   { id: id(), scryfallName: "Yahenni's Expertise", effect: { kind: 'DamageInstruction', amount: 2, target: 'allCreatures' } },
   { id: id(), scryfallName: "Yahenni's Expertise", effect: { kind: 'DamageInstruction', amount: 2, target: 'allCreatures' } },
   { id: id(), scryfallName: "Bontu's Last Reckoning", effect: { kind: 'RemovalInstruction', mode: 'all', count: 1, destroyOrExile: 'destroy' } },
@@ -85,12 +85,12 @@ export const dinosaurDeck: DeckCardConfig[] = [
     scryfallName: 'Toxic Deluge',
     effect: {
       kind: 'DamageInstruction',
-      amount: { query: 'Che X scegli per Toxic Deluge, guardando le creature dei giocatori?', multiplier: 1, offset: 0, min: 1 },
+      amount: { query: 'What X do you choose for Toxic Deluge, looking at the players\' creatures?', multiplier: 1, offset: 0, min: 1 },
       target: 'allCreatures',
     },
   },
 
-  // --- Utility (stato del bot) -------------------------------------------
+  // --- Utility (bot state) ------------------------------------------------
   { id: id(), scryfallName: 'Commune with Dinosaurs', effect: { kind: 'DrawExtraBot', amount: 1 } },
   { id: id(), scryfallName: 'Commune with Dinosaurs', effect: { kind: 'DrawExtraBot', amount: 1 } },
   { id: id(), scryfallName: 'Rest for the Weary', effect: { kind: 'GainLifeBot', amount: 8 } },

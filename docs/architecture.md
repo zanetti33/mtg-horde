@@ -1,0 +1,87 @@
+# Architecture
+
+## Why no backend
+
+The app is meant to be used from a single shared device at the table (a laptop or tablet everyone looks at). There's no need to sync state across multiple devices, so all the state lives in the browser and is saved to `localStorage`. The only network call the app makes is to the [public Scryfall API](https://scryfall.com/docs/api), used to fetch each card's name/cost/image (Scryfall supports CORS for direct browser use).
+
+## Stack
+
+- **Vite + React 19 + TypeScript** — SPA, no router (navigation between "Deck" and "Game" is local state in [App.tsx](../src/App.tsx)).
+- **Tailwind CSS** — styling.
+- **Vitest** — unit tests on the engine logic (there are no tests on the React components: the surface at risk of bugs is almost entirely in the pure logic of `src/engine`).
+- `vite`/`@vitejs/plugin-react`/`vitest` versions are pinned explicitly in `package.json` to stay compatible with a generic Node 20.x (newer versions of these tools require Node ≥20.19).
+
+## Folder structure
+
+```
+src/
+  types.ts                    All domain types (see game-design.md and deck-format.md)
+  App.tsx                     Shell: Deck/Game navigation
+  main.tsx                    Entry point
+
+  scryfall/
+    api.ts                    Scryfall client: autocomplete, search by name, localStorage cache,
+                               serialized request queue to respect Scryfall's rate limit
+
+  engine/                     Pure logic, no React — tested with Vitest
+    templates.ts               Resolution of numeric parameters (fixed or query-based) and of the
+                                effects that modify bot state (CreateCreature, PumpBotBoard, ...)
+    instructionText.ts         Generates the instruction text shown to the table (removal, damage, ...)
+    effectSummary.ts           Readable summary of an effect for the deck builder UI
+    effectDefaults.ts          Default values for each template, used when creating a new one
+    botTurnEngine.ts            Orchestrator: draws, collects queries, resolves the turn, declares
+                                attackers
+
+  state/
+    gameReducer.ts              Pure reducer (AppState = { deck, game }) + all actions
+    AppContext.tsx               React provider: wires up the reducer, persists to localStorage,
+                                 hydrates any missing Scryfall data on startup
+    persistence.ts               localStorage read/write, JSON export/import
+
+  data/
+    defaultDeck.ts               The prebuilt Horde deck (see game-design.md)
+
+  components/                  UI (see below)
+```
+
+### UI components
+
+| Component | Responsibility |
+|---|---|
+| `SetupScreen` | Configuring and starting a new game |
+| `DeckBuilder` / `AddCardForm` (in `DeckBuilder.tsx`) | Deck list, Scryfall search, add/edit/remove cards |
+| `EffectForm` | Form to set an effect's template + parameters |
+| `NumericValueEditor` | Editor for a `NumericValue`: fixed value or query-based formula |
+| `KeywordPicker` | Keyword picker (flying, trample, ...) |
+| `GameBoard` | Main view of a game in progress: "Play bot turn" button, coordinates queries/log/outcome |
+| `BotPanel` | Life, zone counters, bot board (click/right-click to move creatures between zones) |
+| `CardContextMenu` | Generic context menu positioned at the cursor (used by `BotPanel`) |
+| `TurnLog` | Readable log of the bot's last turn, with the image of every card played |
+| `AttackOutcome` | Confirms which of the bot's attackers survived combat |
+| `QueryInputModal` | Collects answers to "Archenemy-style" questions before resolving the turn |
+
+## State management
+
+A single `useReducer` in [AppContext.tsx](../src/state/AppContext.tsx) with state `{ deck: DeckCardConfig[], game: GameState | null }` (see [gameReducer.ts](../src/state/gameReducer.ts) for the full list of actions). The Context exposes `{ state, dispatch }` via the `useAppState()` hook.
+
+Deliberate design points worth calling out:
+
+- **The turn-resolution engine is pure.** `drawForTurn` and `resolveBotTurn` (in `botTurnEngine.ts`) don't touch React or global state: they take a `BotState` and return a new `BotState`. The reducer calls them and applies the result. This is what makes them easy to test with Vitest without mounting components.
+- **All "query" questions are collected before resolving the turn**, not one at a time during resolution: `GameBoard` calls `drawForTurn` + `getPendingQueries` to get a preview of the hand and figure out whether input is needed, shows `QueryInputModal` if so, and only after confirmation sends `RESOLVE_BOT_TURN` to the reducer (which redoes `drawForTurn`+`resolveBotTurn` deterministically, since drawing from the same library array always gives the same result). Resolving a turn "halfway", waiting on user input, would have required an intermediate state inside the reducer itself — deliberately avoided.
+
+## Persistence
+
+`localStorage` with two keys (see `persistence.ts`):
+
+- `horde-deck-config-v1` — the bot's deck
+- `horde-game-state-v1` — the game in progress (absent if no game is active)
+
+Plus a separate cache of already-resolved Scryfall data: `horde-scryfall-cache-v1` (in `scryfall/api.ts`), so the same card isn't requested twice.
+
+The deck builder also offers JSON export/import (`downloadJSON` / `readJSONFile` in `persistence.ts`) for manual backups or moving the configuration to another device.
+
+## Scryfall integration: a lesson learned
+
+The first version hydrated missing Scryfall data with a `useEffect` reacting to `state.deck`: every time a card was successfully hydrated, `state.deck` changed reference, which re-triggered the effect for the cards still missing data. The problem: the "old" (superseded) pass kept fetching in the background regardless — only its final `dispatch` was skipped — so each new pass piled on top of the previous one instead of replacing it. The result was dozens of duplicate requests to Scryfall within a few seconds, enough to trip their rate limit and leave some cards permanently without an image for the session.
+
+The fix adopted: startup hydration runs **exactly once** (`useEffect` with an empty dependency array, see `AppContext.tsx`), over a fixed snapshot of the deck loaded at startup — it no longer reacts to its own side effects. Cards added later from the deck builder are instead resolved **before** being added to state (`AddCardForm.addCard` in `DeckBuilder.tsx` calls `getCardByName` and waits for the result before dispatching), so no extra reactivity is needed there. On top of that, the Scryfall client (`scryfall/api.ts`) uses a real request queue (a promise chain), not just a "time elapsed since last call" check — the latter isn't enough to serialize concurrent calls (e.g. React StrictMode's double-invoke of effects in development).

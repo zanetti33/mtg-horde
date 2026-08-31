@@ -1,26 +1,32 @@
 import { useState } from 'react'
 import { useAppState } from '../state/AppContext'
-import { drawForTurn, getPendingQueries, type QueryPrompt } from '../engine/botTurnEngine'
+import { getPendingQueries, type QueryPrompt } from '../engine/botTurnEngine'
 import { BotPanel } from './BotPanel'
 import { TurnLog } from './TurnLog'
 import { AttackOutcome } from './AttackOutcome'
 import { QueryInputModal } from './QueryInputModal'
+import { CurrentCardReveal } from './CurrentCardReveal'
 
 export function GameBoard() {
   const { state, dispatch } = useAppState()
   const game = state.game
   const [pendingQueries, setPendingQueries] = useState<QueryPrompt[] | null>(null)
+  // The turn now reveals one card at a time (CurrentCardReveal) — the full log is a reference for
+  // "what already happened", not something that needs to stay in view, so it starts collapsed.
+  const [showLog, setShowLog] = useState(false)
 
   if (!game) return null
 
   function playBotTurn() {
     if (!game) return
-    const draft = drawForTurn(game.bot, game.config.drawPerTurn)
-    const queries = getPendingQueries(draft.hand, game.deckSnapshot)
+    // The hand about to be played was already drawn at the end of the previous turn (or at game
+    // start), so it's exactly what's sitting in game.bot.hand right now. Once begun, the turn is
+    // revealed one card at a time (CurrentCardReveal) rather than resolved all at once.
+    const queries = getPendingQueries(game.bot.hand, game.deckSnapshot)
     if (queries.length > 0) {
       setPendingQueries(queries)
     } else {
-      dispatch({ type: 'RESOLVE_BOT_TURN', queryAnswers: {} })
+      dispatch({ type: 'BEGIN_BOT_TURN', queryAnswers: {} })
     }
   }
 
@@ -30,7 +36,7 @@ export function GameBoard() {
     <div className="space-y-4">
       {game.status === 'botDefeated' && (
         <div className="rounded-lg border border-red-700/50 bg-red-950/30 p-4 text-center">
-          <p className="text-lg font-semibold text-red-300">Il bot è stato sconfitto! I giocatori vincono.</p>
+          <p className="text-lg font-semibold text-red-300">The bot has been defeated! The players win.</p>
         </div>
       )}
 
@@ -40,21 +46,30 @@ export function GameBoard() {
           disabled={!canPlayTurn}
           className="rounded bg-emerald-500 px-5 py-2.5 font-medium text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
         >
-          Gioca turno bot
+          Play bot turn
         </button>
         <button
           onClick={() => {
-            if (confirm('Terminare la partita e tornare alla configurazione?')) dispatch({ type: 'RESET_GAME' })
+            if (confirm('End the game and return to setup?')) dispatch({ type: 'RESET_GAME' })
           }}
           className="rounded border border-slate-700 px-3 py-1.5 text-sm text-slate-400 hover:bg-slate-800"
         >
-          Termina partita
+          End game
         </button>
       </div>
 
+      {game.phase === 'resolvingTurn' && <CurrentCardReveal />}
       {game.phase === 'awaitingAttackOutcome' && <AttackOutcome />}
 
-      <TurnLog lines={game.turnLog} turnNumber={game.turnNumber} />
+      {game.turnLog.length > 0 && (
+        <div>
+          <button type="button" onClick={() => setShowLog((v) => !v)} className="flex items-center gap-2 text-sm font-semibold text-slate-300 hover:text-slate-100">
+            <span>{showLog ? '▾' : '▸'}</span>
+            Turn log ({game.turnLog.length})
+          </button>
+          {showLog && <TurnLog lines={game.turnLog} turnNumber={game.phase === 'resolvingTurn' ? game.turnNumber + 1 : game.turnNumber} />}
+        </div>
+      )}
 
       <BotPanel />
 
@@ -63,7 +78,7 @@ export function GameBoard() {
           prompts={pendingQueries}
           onCancel={() => setPendingQueries(null)}
           onSubmit={(answers) => {
-            dispatch({ type: 'RESOLVE_BOT_TURN', queryAnswers: answers })
+            dispatch({ type: 'BEGIN_BOT_TURN', queryAnswers: answers })
             setPendingQueries(null)
           }}
         />

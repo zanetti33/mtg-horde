@@ -1,12 +1,12 @@
 import type { DeckCardConfig } from '../types'
 
-// Mazzo Horde precompilato: ~24 carte reali (nomi validi su Scryfall), ciascuna
-// già mappata su un template semplice (vedi src/engine/templates.ts). Alcune
-// carte reali hanno testo più complesso (condizioni, kicker, "fino a fine
-// turno", targeting singolo anziché di squadra): la mappatura qui sceglie
-// deliberatamente la lettura più semplice e la generalizza al modello
-// "istruzione generica verso i giocatori" o "effetto permanente sul bot",
-// come da criterio di selezione del piano.
+// Prebuilt Horde deck: ~24 real cards (valid Scryfall names), each already
+// mapped to a simple template (see src/engine/templates.ts). Some real cards
+// have more complex text (conditions, kicker, "until end of turn", single
+// targeting instead of team-wide): the mapping here deliberately picks the
+// simplest reading and generalizes it to the "generic instruction to the
+// players" or "permanent effect on the bot" model, per the deck-curation
+// criteria.
 
 let counter = 0
 function id(): string {
@@ -15,7 +15,7 @@ function id(): string {
 }
 
 export const defaultDeck: DeckCardConfig[] = [
-  // --- Creature -------------------------------------------------------
+  // --- Creatures -------------------------------------------------------
   { id: id(), scryfallName: 'Colossal Dreadmaw', effect: { kind: 'CreateCreature', count: 1, power: 6, toughness: 6, keywords: ['trample'] } },
   { id: id(), scryfallName: 'Serra Angel', effect: { kind: 'CreateCreature', count: 1, power: 4, toughness: 4, keywords: ['flying', 'vigilance'] } },
   { id: id(), scryfallName: 'Shivan Dragon', effect: { kind: 'CreateCreature', count: 1, power: 5, toughness: 5, keywords: ['flying'] } },
@@ -30,32 +30,32 @@ export const defaultDeck: DeckCardConfig[] = [
   { id: id(), scryfallName: 'Runeclaw Bear', effect: { kind: 'CreateCreature', count: 1, power: 2, toughness: 2, keywords: [] } },
   { id: id(), scryfallName: 'Rumbling Baloth', effect: { kind: 'CreateCreature', count: 1, power: 4, toughness: 4, keywords: [] } },
 
-  // --- Rimozioni / danno (istruzioni per il tavolo) --------------------
+  // --- Removal / damage (table instructions) ---------------------------
   { id: id(), scryfallName: 'Doom Blade', effect: { kind: 'RemovalInstruction', mode: 'highestPower', count: 1, destroyOrExile: 'destroy' } },
   { id: id(), scryfallName: 'Murder', effect: { kind: 'RemovalInstruction', mode: 'highestToughness', count: 1, destroyOrExile: 'destroy' } },
   { id: id(), scryfallName: 'Wrath of God', effect: { kind: 'RemovalInstruction', mode: 'all', count: 1, destroyOrExile: 'destroy' } },
   { id: id(), scryfallName: 'Lightning Bolt', effect: { kind: 'DamageInstruction', amount: 3, target: 'eachPlayer' } },
   { id: id(), scryfallName: 'Incinerate', effect: { kind: 'DamageInstruction', amount: 3, target: 'creatureHighestToughness' } },
 
-  // --- Sacrificio / scarto ----------------------------------------------
+  // --- Sacrifice / discard -----------------------------------------------
   { id: id(), scryfallName: 'Diabolic Edict', effect: { kind: 'SacrificeInstruction', perPlayer: false, count: 1 } },
   { id: id(), scryfallName: 'Barter in Blood', effect: { kind: 'SacrificeInstruction', perPlayer: true, count: 2 } },
   { id: id(), scryfallName: 'Mind Sludge', effect: { kind: 'DiscardInstruction', perPlayer: true, count: 3 } },
 
-  // --- Utility (stato del bot) -------------------------------------------
+  // --- Utility (bot state) ------------------------------------------------
   { id: id(), scryfallName: 'Rest for the Weary', effect: { kind: 'GainLifeBot', amount: 8 } },
   { id: id(), scryfallName: 'Divination', effect: { kind: 'DrawExtraBot', amount: 2 } },
   { id: id(), scryfallName: 'Overrun', effect: { kind: 'PumpBotBoard', powerBonus: 3, toughnessBonus: 3, grantKeywords: ['trample'] } },
 
-  // --- Effetto scalabile stile Archenemy ----------------------------------
+  // --- Archenemy-style scaling effect --------------------------------------
   {
     id: id(),
     scryfallName: 'Bane of Progress',
     effect: {
       kind: 'CreateCreature',
       count: 1,
-      power: { query: 'Quanti artefatti e incantesimi controllano i giocatori?', multiplier: 1, offset: 4, min: 4 },
-      toughness: { query: 'Quanti artefatti e incantesimi controllano i giocatori?', multiplier: 1, offset: 4, min: 4 },
+      power: { query: 'How many artifacts and enchantments do the players control?', multiplier: 1, offset: 4, min: 4 },
+      toughness: { query: 'How many artifacts and enchantments do the players control?', multiplier: 1, offset: 4, min: 4 },
       keywords: [],
     },
   },

@@ -20,13 +20,13 @@ function Shell() {
               className={`rounded px-3 py-1.5 text-sm font-medium transition ${view === 'game' ? 'bg-slate-100 text-slate-900' : 'text-slate-300 hover:bg-slate-800'}`}
               onClick={() => setView('game')}
             >
-              Partita
+              Game
             </button>
             <button
               className={`rounded px-3 py-1.5 text-sm font-medium transition ${view === 'deck' ? 'bg-slate-100 text-slate-900' : 'text-slate-300 hover:bg-slate-800'}`}
               onClick={() => setView('deck')}
             >
-              Mazzo del bot ({state.deck.length})
+              Bot deck ({state.deck.length})
             </button>
           </nav>
         </div>

@@ -99,12 +99,44 @@ export function applyCreateCreature(card: DeckCardConfig, effect: CreateCreature
   const keywordSuffix = effect.keywords.length > 0 ? ` (${effect.keywords.join(', ')})` : ''
   const description =
     count === 0
-      ? 'nessun effetto (0 creature generate)'
+      ? 'no effect (0 creatures generated)'
       : count === 1
-        ? `evoca ${baseName} ${power}/${toughness}${keywordSuffix}`
-        : `evoca ${count} token ${baseName} ${power}/${toughness}${keywordSuffix}`
+        ? `summons ${baseName} ${power}/${toughness}${keywordSuffix}`
+        : `summons ${count} ${baseName} tokens ${power}/${toughness}${keywordSuffix}`
 
   return { creatures, description }
+}
+
+/**
+ * Builds the battlefield object for a card re-entering play from another
+ * zone (manual correction, mill/reanimation-style effect, ...) — as opposed
+ * to `applyCreateCreature`, which is for the bot *casting* the card. Reuses
+ * the given instance id (the card keeps its identity across zones) and
+ * always produces exactly one non-token creature: only `CreateCreature`
+ * cards have a body to put into play, and moving a real card back to the
+ * battlefield is never the "make N tokens" reading of `count`. Numeric
+ * fields driven by a query resolve with no answers (falls back to
+ * `offset`/`min`), since this happens outside the turn-resolution flow that
+ * collects query answers up front.
+ */
+export function buildBattlefieldCreatureFromCard(card: DeckCardConfig, instanceId: string): BattlefieldCreature | null {
+  if (card.effect.kind !== 'CreateCreature') return null
+  const effect = card.effect
+  const power = Math.round(resolveNumeric(card, 'power', {}))
+  const toughness = Math.round(resolveNumeric(card, 'toughness', {}))
+  const hasHaste = effect.keywords.includes('haste')
+
+  return {
+    instanceId,
+    name: card.scryfallName,
+    imageUrl: card.scryfall?.imageUrl,
+    isToken: false,
+    power,
+    toughness,
+    keywords: effect.keywords,
+    summoningSick: !hasHaste,
+    sourceDeckCardId: card.id,
+  }
 }
 
 export interface PumpBoardResult {
@@ -130,18 +162,18 @@ export function applyPumpBotBoard(
   }))
 
   const parts = [`+${powerBonus}/+${toughnessBonus}`]
-  if (grant.length > 0) parts.push(`concede ${grant.join(', ')}`)
-  const description = `le creature del bot ottengono ${parts.join(' e ')}`
+  if (grant.length > 0) parts.push(`grants ${grant.join(', ')}`)
+  const description = `the bot's creatures get ${parts.join(' and ')}`
 
   return { battlefield: updated, description }
 }
 
 export function applyGainLifeBot(card: DeckCardConfig, _effect: GainLifeBotEffect, queryAnswers: Record<string, number>) {
   const amount = Math.round(resolveNumeric(card, 'amount', queryAnswers))
-  return { amount, description: `il bot guadagna ${amount} vita` }
+  return { amount, description: `the bot gains ${amount} life` }
 }
 
 export function applyDrawExtraBot(card: DeckCardConfig, _effect: DrawExtraBotEffect, queryAnswers: Record<string, number>) {
   const amount = Math.round(resolveNumeric(card, 'amount', queryAnswers))
-  return { amount, description: `il bot pesca ${amount} cart${amount === 1 ? 'a' : 'e'} extra` }
+  return { amount, description: `the bot draws ${amount} extra card${amount === 1 ? '' : 's'}` }
 }

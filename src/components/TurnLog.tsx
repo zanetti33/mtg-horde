@@ -6,7 +6,7 @@ export function TurnLog({ lines, turnNumber }: { lines: TurnLogEntry[]; turnNumb
 
   return (
     <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-4">
-      <h3 className="mb-2 text-sm font-semibold text-slate-300">Turno del bot #{turnNumber}</h3>
+      <h3 className="mb-2 text-sm font-semibold text-slate-300">Bot turn #{turnNumber}</h3>
       <ol className="space-y-2">
         {lines.map((line, i) => (
           <li key={i} className="flex items-center gap-3">

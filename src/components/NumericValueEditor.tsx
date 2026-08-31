@@ -29,7 +29,7 @@ export function NumericValueEditor({ label, value, onChange }: { label: string; 
             checked={query !== null}
             onChange={(e) => onChange(e.target.checked ? { query: '', multiplier: 1, offset: 0 } : 0)}
           />
-          da query
+from query
         </label>
       </div>
 
@@ -37,16 +37,16 @@ export function NumericValueEditor({ label, value, onChange }: { label: string; 
         <div className="mt-2 space-y-2">
           <input
             type="text"
-            placeholder="Domanda da porre (es. Quanti artefatti controllano i giocatori?)"
+            placeholder="Question to ask (e.g. How many artifacts do the players control?)"
             value={query.query}
             onChange={(e) => onChange({ ...query, query: e.target.value })}
             className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100"
           />
           <div className="flex gap-2">
-            <OptionalNumberField label="moltiplica x" value={query.multiplier} onChange={(n) => onChange({ ...query, multiplier: n ?? 0 })} />
-            <OptionalNumberField label="poi +" value={query.offset} onChange={(n) => onChange({ ...query, offset: n ?? 0 })} />
-            <OptionalNumberField label="minimo" value={query.min} onChange={(n) => onChange({ ...query, min: n })} />
-            <OptionalNumberField label="massimo" value={query.max} onChange={(n) => onChange({ ...query, max: n })} />
+            <OptionalNumberField label="multiply by" value={query.multiplier} onChange={(n) => onChange({ ...query, multiplier: n ?? 0 })} />
+            <OptionalNumberField label="then +" value={query.offset} onChange={(n) => onChange({ ...query, offset: n ?? 0 })} />
+            <OptionalNumberField label="minimum" value={query.min} onChange={(n) => onChange({ ...query, min: n })} />
+            <OptionalNumberField label="maximum" value={query.max} onChange={(n) => onChange({ ...query, max: n })} />
           </div>
         </div>
       ) : (
