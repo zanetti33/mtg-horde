@@ -202,7 +202,7 @@ function DeckCardRow({ card, locked }: { card: DeckCardConfig; locked: boolean }
   const [editing, setEditing] = useState(false)
 
   return (
-    <div className="rounded border border-slate-800 bg-slate-900/30 p-3">
+    <div data-testid="deck-card-row" className="rounded border border-slate-800 bg-slate-900/30 p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           {card.scryfall?.imageUrl && <CardThumbnail imageUrl={card.scryfall.imageUrl} alt={card.scryfallName} className="h-16 w-auto rounded" />}

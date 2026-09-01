@@ -31,8 +31,17 @@ Open http://localhost:5173.
 | `npm run dev` | Starts the Vite dev server (with hot reload) |
 | `npm run build` | Typecheck (`tsc -b`) + production build in `dist/` |
 | `npm run preview` | Serves the production build locally, for a final check |
-| `npm test` | Runs the Vitest test suite |
+| `npm test` | Runs the Vitest unit test suite (engine logic) |
+| `npm run test:e2e` | Runs the Playwright end-to-end smoke tests against a real browser (starts the dev server itself) — see [Testing](#testing) below |
+| `npm run test:e2e:ui` | Same, in Playwright's interactive UI mode (step through, inspect, time-travel) |
 | `npm run fetch-cards` | Refreshes the bundled Scryfall data/images for the preset decks (`public/cards/`, `src/data/scryfallCache.ts`) — run after adding a card to a preset deck. Already-cached cards are skipped, so it's safe to re-run. |
+
+## Testing
+
+Two layers, both run in CI on every push to `main` (gating the Pages deploy — see [.github/workflows/deploy.yml](.github/workflows/deploy.yml)):
+
+- **Unit tests** (`npm test`, Vitest) — the pure engine logic in `src/engine`/`src/state`: card resolution, turn flow, draw weighting. See `docs/architecture.md`.
+- **End-to-end smoke tests** (`npm run test:e2e`, Playwright, `e2e/`) — a real headless Chromium driving the actual UI through a few representative flows: starting a new game from a preset, playing a bot turn through to a combat outcome, unlocking and editing a card in the deck builder. First run downloads a Chromium binary (`npx playwright install chromium`, done automatically the first time you run the tests locally if missing — see [playwright.config.ts](playwright.config.ts)). These exist specifically to catch real rendering/layout regressions that unit tests can't (they only exercise logic, never actual DOM/CSS) — e.g. an element becoming unreachable, a panel overflowing, a click landing on the wrong thing.
 
 ## Quick app usage
 
@@ -44,7 +53,7 @@ Open http://localhost:5173.
 
 ## Tech stack
 
-Vite + React + TypeScript + Tailwind CSS. No backend. Persistence in `localStorage` (plus JSON export/import). Card data from the public Scryfall API, with the preset decks' data/images bundled locally (see `scripts/fetch-card-assets.mjs`). Tests with Vitest.
+Vite + React + TypeScript + Tailwind CSS. No backend. Persistence in `localStorage` (plus JSON export/import). Card data from the public Scryfall API, with the preset decks' data/images bundled locally (see `scripts/fetch-card-assets.mjs`). Tests with Vitest (unit) and Playwright (end-to-end).
 
 ## Documentation
 

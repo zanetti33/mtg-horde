@@ -25,7 +25,7 @@ export function AttackOutcome() {
   }
 
   return (
-    <div className="rounded-lg border border-amber-700/50 bg-amber-950/20 p-4">
+    <div data-testid="attack-outcome" className="rounded-lg border border-amber-700/50 bg-amber-950/20 p-4">
       <h3 className="mb-1 text-sm font-semibold text-amber-300">Combat outcome</h3>
       <p className="mb-3 text-sm text-slate-400">
         After the players have declared blocks physically, click the bot's creatures that died in combat. Click again to undo.

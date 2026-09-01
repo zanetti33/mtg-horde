@@ -36,7 +36,11 @@ export function SetupScreen() {
             {DECK_PRESETS.map((preset) => {
               const active = state.deckSource === preset.label
               return (
-                <div key={preset.label} className={`rounded border p-3 ${active ? 'border-emerald-600 bg-emerald-950/30' : 'border-slate-800'}`}>
+                <div
+                  key={preset.label}
+                  data-testid={`preset-${preset.label}`}
+                  className={`rounded border p-3 ${active ? 'border-emerald-600 bg-emerald-950/30' : 'border-slate-800'}`}
+                >
                   <div className="flex items-center justify-between gap-2">
                     <span className={`text-sm font-medium ${active ? 'text-emerald-300' : 'text-slate-200'}`}>
                       {preset.label} ({preset.deck.length})

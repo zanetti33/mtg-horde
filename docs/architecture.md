@@ -8,7 +8,8 @@ The app is meant to be used from a single shared device at the table (a laptop o
 
 - **Vite + React 19 + TypeScript** — SPA, no router (navigation between "Deck" and "Game" is local state in [App.tsx](../src/App.tsx)).
 - **Tailwind CSS** — styling.
-- **Vitest** — unit tests on the engine logic (there are no tests on the React components: the surface at risk of bugs is almost entirely in the pure logic of `src/engine`).
+- **Vitest** — unit tests on the engine logic (`src/engine`/`src/state`, see `*.test.ts` next to the files they cover): pure functions, no DOM, fast.
+- **Playwright** — end-to-end smoke tests (`e2e/`, see `playwright.config.ts`) driving a real headless Chromium through a handful of representative flows (new game from a preset, a full bot turn through combat outcome, editing a card in the deck builder). Unlike the unit tests, these actually render the React components and exercise real layout/CSS — the class of bug (an element overlapping, a click landing on the wrong target, a panel overflowing) that pure-logic tests structurally can't catch. Both layers run in CI on every push to `main` and gate the Pages deploy (`.github/workflows/deploy.yml`).
 - `vite`/`@vitejs/plugin-react`/`vitest` versions are pinned explicitly in `package.json` to stay compatible with a generic Node 20.x (newer versions of these tools require Node ≥20.19).
 
 ## Folder structure
@@ -52,6 +53,11 @@ scripts/
 
 public/
   cards/                       Generated — bundled card images (see below)
+
+e2e/                          Playwright end-to-end smoke tests (see playwright.config.ts)
+  fixtures.ts                  Small offline deck fixtures (pre-filled Scryfall data, so tests
+                               never hit the network) for deterministic scenarios
+  *.spec.ts                    One file per user-facing flow
 ```
 
 ### UI components
