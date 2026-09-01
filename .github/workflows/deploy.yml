@@ -43,6 +43,7 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -50,7 +51,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # DEBIAN_FRONTEND=noninteractive: --with-deps runs apt-get under the hood, and without this
+      # a package that would otherwise prompt (e.g. tzdata) hangs the job forever instead of just
+      # picking a default — the job-level timeout above is a second line of defense for that case.
       - run: npx playwright install --with-deps chromium
+        env:
+          DEBIAN_FRONTEND: noninteractive
       - run: npm run test:e2e
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
