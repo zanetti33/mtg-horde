@@ -70,7 +70,7 @@ export function EffectForm({ effect, onChange }: { effect: EffectParams; onChang
             <KeywordPicker selected={effect.keywords} onChange={(keywords) => onChange({ ...effect, keywords })} />
           </div>
           <div className="rounded border border-slate-800 p-2">
-            <p className="mb-2 text-xs text-slate-500">Only used when Count resolves to more than 1 (i.e. the card makes tokens, not its own body).</p>
+            <p className="mb-2 text-xs text-slate-500">Used only when Count &gt; 1 (tokens).</p>
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-slate-300">Token name</span>
               <input
@@ -136,10 +136,7 @@ export function EffectForm({ effect, onChange }: { effect: EffectParams; onChang
             <span className="mb-1 block text-xs font-medium text-slate-300">Keywords granted</span>
             <KeywordPicker selected={effect.grantKeywords} onChange={(grantKeywords) => onChange({ ...effect, grantKeywords })} />
           </div>
-          <p className="text-xs text-slate-500">
-            Unlike "Buff the bot board", this stays in play as its own permanent: it also buffs creatures that enter play later, and can be
-            destroyed/exiled like any other card (see the "Bot permanents" section in-game).
-          </p>
+          <p className="text-xs text-slate-500">Persistent: unlike "Buff the bot board", it also affects creatures added later and can be destroyed on its own.</p>
         </>
       )}
 

@@ -21,101 +21,86 @@ export function SetupScreen() {
   }
 
   return (
-    <div className="mx-auto max-w-md rounded-lg border border-slate-800 bg-slate-900/40 p-6">
-      <h2 className="mb-1 text-xl font-semibold">New game</h2>
-      <p className="mb-6 text-sm text-slate-400">
-        The bot will only track its own state. Players' life and board stay managed physically at the table.
-      </p>
+    <div className="mx-auto max-w-3xl rounded-lg border border-slate-800 bg-slate-900/40 p-6">
+      <h2 className="mb-6 text-xl font-semibold">New game</h2>
 
-      <div className="mb-6">
-        <span className="mb-1 block text-sm font-medium text-slate-300">Bot deck</span>
-        <p className="mb-2 text-xs text-slate-500">
-          {state.deck.length} card{state.deck.length === 1 ? '' : 's'} —{' '}
-          {state.deckSource === CUSTOM_DECK_SOURCE ? (
-            'Custom deck (freely editable).'
-          ) : (
-            <>
-              Fixed <strong className="text-slate-300">{state.deckSource}</strong> preset. Fine-tune it from the "Bot deck" tab (you'll be asked to
-              switch to Custom first).
-            </>
-          )}{' '}
-          Once the game starts, the deck stays locked for its entire duration.
-        </p>
-        <div className="space-y-2">
-          {DECK_PRESETS.map((preset) => {
-            const active = state.deckSource === preset.label
-            return (
-              <div key={preset.label} className={`rounded border p-2 ${active ? 'border-emerald-600 bg-emerald-950/30' : 'border-slate-800'}`}>
-                <div className="flex items-center justify-between gap-2">
-                  <span className={`text-sm font-medium ${active ? 'text-emerald-300' : 'text-slate-200'}`}>
-                    {preset.label} ({preset.deck.length})
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => loadPreset(preset)}
-                    className={`shrink-0 rounded border px-2 py-1 text-xs transition ${
-                      active ? 'border-emerald-600 bg-emerald-950 text-emerald-300' : 'border-slate-700 text-slate-300 hover:bg-slate-800'
-                    }`}
-                  >
-                    {active ? 'Active ✓' : 'Load'}
-                  </button>
+      <div className="grid gap-8 lg:grid-cols-2">
+        <div>
+          <div className="mb-2 flex items-baseline justify-between">
+            <span className="text-sm font-medium text-slate-300">Bot deck</span>
+            <span className="text-xs text-slate-500">
+              {state.deck.length} card{state.deck.length === 1 ? '' : 's'} — {state.deckSource === CUSTOM_DECK_SOURCE ? 'Custom' : state.deckSource}
+            </span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+            {DECK_PRESETS.map((preset) => {
+              const active = state.deckSource === preset.label
+              return (
+                <div key={preset.label} className={`rounded border p-2 ${active ? 'border-emerald-600 bg-emerald-950/30' : 'border-slate-800'}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`text-sm font-medium ${active ? 'text-emerald-300' : 'text-slate-200'}`}>
+                      {preset.label} ({preset.deck.length})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => loadPreset(preset)}
+                      className={`shrink-0 rounded border px-2 py-1 text-xs transition ${
+                        active ? 'border-emerald-600 bg-emerald-950 text-emerald-300' : 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      {active ? 'Active ✓' : 'Load'}
+                    </button>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">{preset.description}</p>
                 </div>
-                <p className="mt-1 text-xs text-slate-500">{preset.description}</p>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium text-slate-300">Number of players</span>
-          <input
-            type="number"
-            min={1}
-            max={8}
-            value={playerCount}
-            onChange={(e) => setPlayerCount(Number(e.target.value))}
-            className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
-          />
-        </label>
-
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium text-slate-300">Difficulty</span>
-          <select
-            value={difficulty}
-            onChange={(e) => setDifficulty(e.target.value as Difficulty)}
-            className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
-          >
-            {(Object.keys(DIFFICULTY_LABELS) as Difficulty[]).map((d) => (
-              <option key={d} value={d}>
-                {DIFFICULTY_LABELS[d]}
-              </option>
-            ))}
-          </select>
-          <span className="mt-1 block text-xs text-slate-500">
-            Together with player count and turn number, shapes both how many cards the bot draws each turn and how quickly its draws skew toward
-            its highest-impact cards. Opening hand this game: {computeBaseDrawCount(1, playerCount, difficulty)} card
-            {computeBaseDrawCount(1, playerCount, difficulty) === 1 ? '' : 's'}.
-          </span>
-        </label>
-
-        <div>
-          <span className="mb-1 block text-sm font-medium text-slate-300">Bot starting life</span>
-          <p className="rounded border border-slate-800 bg-slate-950/60 px-3 py-2 text-slate-100">{computeStartingBotLife(playerCount)}</p>
-          <span className="mt-1 block text-xs text-slate-500">
-            Scales with player count only — a bigger table throws more attackers and removal at the bot per turn, so it needs more life to last
-            long enough to see the cards difficulty and turn number are meant to unlock.
-          </span>
+              )
+            })}
+          </div>
         </div>
 
-        <div>
-          <span className="mb-1 block text-sm font-medium text-slate-300">Players' shared starting life</span>
-          <p className="rounded border border-slate-800 bg-slate-950/60 px-3 py-2 text-slate-100">{computeSuggestedPlayersLife(playerCount)}</p>
-          <span className="mt-1 block text-xs text-slate-500">
-            Scales with player count. Just a shared counter for convenience — the app never reads it back after this, the table can freely adjust
-            it during play, combat/effects on players are still resolved physically.
-          </span>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium text-slate-300">Players</span>
+              <input
+                type="number"
+                min={1}
+                max={8}
+                value={playerCount}
+                onChange={(e) => setPlayerCount(Number(e.target.value))}
+                className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium text-slate-300">Difficulty</span>
+              <select
+                value={difficulty}
+                onChange={(e) => setDifficulty(e.target.value as Difficulty)}
+                className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
+              >
+                {(Object.keys(DIFFICULTY_LABELS) as Difficulty[]).map((d) => (
+                  <option key={d} value={d}>
+                    {DIFFICULTY_LABELS[d]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <p className="text-xs text-slate-500">
+            Opening hand: {computeBaseDrawCount(1, playerCount, difficulty)} card{computeBaseDrawCount(1, playerCount, difficulty) === 1 ? '' : 's'}.
+          </p>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <span className="mb-1 block text-sm font-medium text-slate-300">Bot life</span>
+              <p className="rounded border border-slate-800 bg-slate-950/60 px-3 py-2 text-slate-100">{computeStartingBotLife(playerCount)}</p>
+            </div>
+            <div>
+              <span className="mb-1 block text-sm font-medium text-slate-300">Players' life</span>
+              <p className="rounded border border-slate-800 bg-slate-950/60 px-3 py-2 text-slate-100">{computeSuggestedPlayersLife(playerCount)}</p>
+            </div>
+          </div>
         </div>
       </div>
 

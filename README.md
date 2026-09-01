@@ -1,5 +1,7 @@
 # Horde Bot
 
+**Live app: https://zanetti33.github.io/mtg-horde/**
+
 Companion webapp for Magic: The Gathering games in **Horde** format: 4 real players against 1 bot. The app doesn't replace Magic's rules — players play their own turns physically, as always. Its only job is to manage the bot's turn: keep track of its deck/board/life state and decide, in a readable way, what it does each turn (creatures summoned, removal, damage, attacks).
 
 ## How it works in short

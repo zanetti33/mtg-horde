@@ -141,7 +141,6 @@ export function BotPanel() {
             + Add token
           </button>
         </div>
-        <p className="mb-2 text-xs text-slate-500">Click a dead creature = it goes to the graveyard. Right-click for other destinations.</p>
         {bot.battlefield.length === 0 ? (
           <p className="text-sm text-slate-500">No creatures in play.</p>
         ) : (
@@ -191,10 +190,6 @@ export function BotPanel() {
 
       <div>
         <h3 className="mb-2 text-sm font-semibold text-slate-300">Bot permanents ({bot.permanents.length})</h3>
-        <p className="mb-2 text-xs text-slate-500">
-          Artifacts/enchantments — persistent buffs to every bot creature, including ones that enter play later. Click a destroyed one = it
-          goes to the graveyard. Right-click for other destinations.
-        </p>
         {bot.permanents.length === 0 ? (
           <p className="text-sm text-slate-500">No artifacts or enchantments in play.</p>
         ) : (
