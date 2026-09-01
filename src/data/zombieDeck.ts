@@ -26,9 +26,12 @@ import { attachLocalScryfallData } from './attachLocalScryfallData'
 // variable X.
 //
 // Every CreateCreature that produces tokens (count > 1) also carries tokenTypeLine/tokenColors —
-// purely informational (the engine never reads them), shown on the token card in BotPanel/
-// AttackOutcome since tokens have no card image for the table to check colors/type against their
-// own buffs or removal. See Color/BattlefieldCreature.typeLine in types.ts.
+// purely informational (the engine never reads them), a text fallback for when a token has no real
+// card image. `npm run fetch-cards` also resolves and bundles the real Scryfall *token* card for
+// each distinct token identity here (name + power/toughness/keywords), attached as
+// effect.tokenScryfall by attachLocalScryfallData.ts — that's what actually gives these tokens an
+// image in BotPanel/AttackOutcome, same as any other card. See "Tokens: real Scryfall art" in
+// docs/game-design.md and Color/BattlefieldCreature.typeLine in types.ts.
 //
 // Real anthem lords (Death Baron, Undead Warchief, Risen Executioner,
 // Diregraf Captain) are mapped to `PumpBotBoard` instead of `CreateCreature`
@@ -136,7 +139,10 @@ const zombieDeckRaw: DeckCardConfig[] = [
     id: id(),
     scryfallName: 'Army of the Damned',
     impact: 3, category: 'horde',
-    effect: { kind: 'CreateCreature', count: 13, power: 2, toughness: 2, keywords: ['flying'], tokenName: 'Zombie', tokenTypeLine: 'Zombie', tokenColors: ['B'] },
+    // Real text: "thirteen tapped 2/2 black Zombie creature tokens" — no flying (that keyword was
+    // a fabrication from an earlier version of this deck; "tapped" is dropped like any other
+    // detail this engine doesn't track, e.g. summoning sickness already covers "can't attack yet").
+    effect: { kind: 'CreateCreature', count: 13, power: 2, toughness: 2, keywords: [], tokenName: 'Zombie', tokenTypeLine: 'Zombie', tokenColors: ['B'] },
   },
 
   // --- Lords (real anthem effects, mapped to PumpBotBoard — see file header) ---

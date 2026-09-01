@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useAppState } from '../state/AppContext'
+import { groupCreatures } from '../engine/battlefieldGrouping'
 import { CardThumbnail } from './CardThumbnail'
+import { CardStack } from './CardStack'
 import { ColorDots } from './ColorDots'
 
 export function AttackOutcome() {
@@ -10,11 +12,18 @@ export function AttackOutcome() {
 
   if (attackers.length === 0) return null
 
-  function toggle(id: string) {
+  /**
+   * A click on a stack marks one more of its (identical, interchangeable) attackers as dead —
+   * same "click = one casualty" gesture as a lone attacker, just repeatable per stack instead of
+   * needing one tile per instance. Once every instance in the stack is marked, clicking again
+   * revives the whole stack (undo), mirroring the single-instance toggle exactly when count === 1.
+   */
+  function markNextOrRevive(instanceIds: string[]) {
     setEliminated((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      const nextToMark = instanceIds.find((id) => !next.has(id))
+      if (nextToMark) next.add(nextToMark)
+      else for (const id of instanceIds) next.delete(id)
       return next
     })
   }
@@ -32,37 +41,43 @@ export function AttackOutcome() {
       </p>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-        {attackers.map((a) => {
-          const isDead = eliminated.has(a.instanceId)
+        {groupCreatures(attackers).map((group) => {
+          const a = group.representative
+          const count = group.instanceIds.length
+          const deadCount = group.instanceIds.filter((id) => eliminated.has(id)).length
+          const anyDead = deadCount > 0
           return (
-            <button
-              key={a.instanceId}
-              type="button"
-              onClick={() => toggle(a.instanceId)}
-              className={`group relative overflow-hidden rounded border p-2 text-left transition ${
-                isDead ? 'border-red-700 bg-red-950/30' : 'border-slate-700 bg-slate-950/60 hover:border-emerald-600'
-              }`}
-            >
-              {a.imageUrl && <CardThumbnail imageUrl={a.imageUrl} alt="" className={`mb-1 w-full rounded transition ${isDead ? 'opacity-40 grayscale' : ''}`} />}
-              <p className={`text-sm font-medium ${isDead ? 'text-red-300 line-through' : 'text-slate-100'}`}>{a.name}</p>
-              <p className="text-xs text-slate-400">
-                {a.power}/{a.toughness}
-              </p>
-              {!a.imageUrl && (a.typeLine || (a.colors && a.colors.length > 0)) && (
-                <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
-                  <ColorDots colors={a.colors} />
-                  {a.typeLine}
+            <CardStack key={group.key} count={count} testId="attack-outcome-stack">
+              <button
+                type="button"
+                onClick={() => markNextOrRevive(group.instanceIds)}
+                className={`group relative w-full overflow-hidden rounded border p-2 text-left transition ${
+                  anyDead ? 'border-red-700 bg-red-950/30' : 'border-slate-700 bg-slate-950/60 hover:border-emerald-600'
+                }`}
+              >
+                {a.imageUrl && <CardThumbnail imageUrl={a.imageUrl} alt="" className={`mb-1 w-full rounded transition ${anyDead ? 'opacity-40 grayscale' : ''}`} />}
+                <p className={`text-sm font-medium ${anyDead ? 'text-red-300 line-through' : 'text-slate-100'}`}>{a.name}</p>
+                <p className="text-xs text-slate-400">
+                  {a.power}/{a.toughness}
                 </p>
-              )}
+                {!a.imageUrl && (a.typeLine || (a.colors && a.colors.length > 0)) && (
+                  <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
+                    <ColorDots colors={a.colors} />
+                    {a.typeLine}
+                  </p>
+                )}
 
-              {isDead ? (
-                <span className="absolute right-1 top-1 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white">DEAD</span>
-              ) : (
-                <span className="absolute right-1 top-1 rounded-full bg-emerald-600/90 px-1.5 py-0.5 text-[10px] font-bold text-white opacity-0 transition group-hover:opacity-100">
-                  ✕ eliminate
-                </span>
-              )}
-            </button>
+                {anyDead ? (
+                  <span className="absolute left-1 top-1 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                    {count > 1 ? `${deadCount}/${count} DEAD` : 'DEAD'}
+                  </span>
+                ) : (
+                  <span className="absolute left-1 top-1 rounded-full bg-emerald-600/90 px-1.5 py-0.5 text-[10px] font-bold text-white opacity-0 transition group-hover:opacity-100">
+                    ✕ eliminate{count > 1 ? ' one' : ''}
+                  </span>
+                )}
+              </button>
+            </CardStack>
           )
         })}
       </div>

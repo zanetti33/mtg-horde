@@ -82,10 +82,21 @@ export interface CreateCreatureEffect {
   keywords: Keyword[]
   /** Display name for produced tokens when count > 1. Defaults to the card's own name. */
   tokenName?: string
-  /** Creature type line for produced tokens (e.g. "Zombie", "Dinosaur Soldier") — only used when count > 1; a real card's own body already shows this on its Scryfall image. */
+  /** Creature type line for produced tokens (e.g. "Zombie", "Dinosaur Soldier") — only used when count > 1; a real card's own body already shows this on its Scryfall image. Superseded by `tokenScryfall.typeLine` when that's present. */
   tokenTypeLine?: string
-  /** Colors for produced tokens — only used when count > 1, same reasoning as `tokenTypeLine`. */
+  /** Colors for produced tokens — only used when count > 1, same reasoning as `tokenTypeLine`. Superseded by `tokenScryfall.colors` when that's present. */
   tokenColors?: Color[]
+  /**
+   * The real Scryfall *token* card (not the spell that creates it) matching this token's name/
+   * power/toughness/keywords — e.g. for a card that makes "2/2 black Zombie" tokens, this is the
+   * actual printed "Zombie" token card, not "Army of the Damned"'s own card. When present, it
+   * supersedes `tokenTypeLine`/`tokenColors` and — unlike those two, which are text-only — also
+   * gives the token a real image, exactly like a `count === 1` `CreateCreature` card gets its own
+   * image from `DeckCardConfig.scryfall`. Populated the same way as that field: bundled locally for
+   * the preset decks (`scripts/fetch-card-assets.mjs`/`attachLocalScryfallData.ts`), left undefined
+   * for custom decks unless set by hand (no deck-builder UI for it yet).
+   */
+  tokenScryfall?: ScryfallCardData
 }
 
 export interface PumpBotBoardEffect {

@@ -26,15 +26,17 @@ export function applyCreateCreature(card: DeckCardConfig, effect: CreateCreature
   const isToken = count !== 1
   const hasHaste = effect.keywords.includes('haste')
   const baseName = isToken ? (effect.tokenName ?? card.scryfallName) : card.scryfallName
-  // A real card's own Scryfall image already shows its type/colors; tokens have no image, so they
-  // carry the deck author's tokenTypeLine/tokenColors instead (see Color in types.ts).
-  const typeLine = isToken ? effect.tokenTypeLine : card.scryfall?.typeLine
-  const colors = isToken ? effect.tokenColors : card.scryfall?.colors
+  // A real card's own Scryfall image already shows its type/colors. Tokens get the same treatment
+  // when a real Scryfall *token* card is bundled for them (tokenScryfall — see types.ts); otherwise
+  // they fall back to the deck author's plain-text tokenTypeLine/tokenColors and no image.
+  const typeLine = isToken ? (effect.tokenScryfall?.typeLine ?? effect.tokenTypeLine) : card.scryfall?.typeLine
+  const colors = isToken ? (effect.tokenScryfall?.colors ?? effect.tokenColors) : card.scryfall?.colors
+  const imageUrl = isToken ? effect.tokenScryfall?.imageUrl : card.scryfall?.imageUrl
 
   const creatures: BattlefieldCreature[] = Array.from({ length: count }, () => ({
     instanceId: newInstanceId(),
     name: isToken ? `${baseName} (token)` : baseName,
-    imageUrl: isToken ? undefined : card.scryfall?.imageUrl,
+    imageUrl,
     isToken,
     power,
     toughness,
@@ -46,7 +48,7 @@ export function applyCreateCreature(card: DeckCardConfig, effect: CreateCreature
   }))
 
   const keywordSuffix = effect.keywords.length > 0 ? ` (${effect.keywords.join(', ')})` : ''
-  const colorPrefix = isToken && effect.tokenColors && effect.tokenColors.length > 0 ? ` ${effect.tokenColors.join('/')}` : ''
+  const colorPrefix = isToken && colors && colors.length > 0 ? ` ${colors.join('/')}` : ''
   const description =
     count === 0
       ? 'no effect (0 creatures generated)'

@@ -982,6 +982,39 @@
       "G"
     ]
   },
+  "token:dinosaur soldier|2/2|": {
+    "scryfallId": "f8845523-62d5-451c-aa20-780c64bb44b3",
+    "name": "Dinosaur Soldier",
+    "manaCost": "",
+    "cmc": 0,
+    "typeLine": "Token Creature — Dinosaur Soldier",
+    "imagePath": "cards/f8845523-62d5-451c-aa20-780c64bb44b3.jpg",
+    "colors": [
+      "W"
+    ]
+  },
+  "token:dinosaur|3/3|trample": {
+    "scryfallId": "20f22bef-e00f-461b-a75b-c5ad49865044",
+    "name": "Dinosaur",
+    "manaCost": "",
+    "cmc": 0,
+    "typeLine": "Token Creature — Dinosaur",
+    "imagePath": "cards/20f22bef-e00f-461b-a75b-c5ad49865044.jpg",
+    "colors": [
+      "G"
+    ]
+  },
+  "token:zombie|2/2|": {
+    "scryfallId": "aa525567-24f3-4ad4-b0b2-3b09d87cd106",
+    "name": "Zombie",
+    "manaCost": "",
+    "cmc": 0,
+    "typeLine": "Token Enchantment Creature — Zombie",
+    "imagePath": "cards/aa525567-24f3-4ad4-b0b2-3b09d87cd106.jpg",
+    "colors": [
+      "B"
+    ]
+  },
   "tomb tyrant": {
     "scryfallId": "73315f75-252e-4db2-b48c-a60eafaf25e3",
     "name": "Tomb Tyrant",

@@ -203,7 +203,7 @@ export function BotPanel() {
               const permanent = group.representative
               const count = group.instanceIds.length
               return (
-                <CardStack key={group.key} count={count} borderClassName="border-purple-900/60" testId="permanent-stack">
+                <CardStack key={group.key} count={count} testId="permanent-stack">
                   <button
                     type="button"
                     onClick={() => move('permanents', permanent.instanceId, { zone: 'graveyard' })}

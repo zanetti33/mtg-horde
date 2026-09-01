@@ -6,7 +6,7 @@
 // (https://scryfall.com) under their data usage guidelines. See
 // src/scryfall/CREDITS.md for the required attribution.
 
-import type { ScryfallCardData } from '../types'
+import type { Keyword, ScryfallCardData } from '../types'
 
 interface CachedEntry {
   scryfallId: string
@@ -124,18 +124,40 @@ const RAW: Record<string, CachedEntry> = {
   "zombify": {"scryfallId":"dc798e6f-13c4-457c-b052-b7b65bc83cfe","name":"Zombify","manaCost":"{3}{B}","cmc":4,"typeLine":"Sorcery","imagePath":"cards/dc798e6f-13c4-457c-b052-b7b65bc83cfe.jpg","colors":["B"]},
 }
 
+const RAW_TOKENS: Record<string, CachedEntry> = {
+  "token:dinosaur soldier|2/2|": {"scryfallId":"f8845523-62d5-451c-aa20-780c64bb44b3","name":"Dinosaur Soldier","manaCost":"","cmc":0,"typeLine":"Token Creature — Dinosaur Soldier","imagePath":"cards/f8845523-62d5-451c-aa20-780c64bb44b3.jpg","colors":["W"]},
+  "token:dinosaur|3/3|trample": {"scryfallId":"20f22bef-e00f-461b-a75b-c5ad49865044","name":"Dinosaur","manaCost":"","cmc":0,"typeLine":"Token Creature — Dinosaur","imagePath":"cards/20f22bef-e00f-461b-a75b-c5ad49865044.jpg","colors":["G"]},
+  "token:zombie|2/2|": {"scryfallId":"aa525567-24f3-4ad4-b0b2-3b09d87cd106","name":"Zombie","manaCost":"","cmc":0,"typeLine":"Token Enchantment Creature — Zombie","imagePath":"cards/aa525567-24f3-4ad4-b0b2-3b09d87cd106.jpg","colors":["B"]},
+}
+
+function resolve(entry: CachedEntry): ScryfallCardData {
+  return {
+    scryfallId: entry.scryfallId,
+    name: entry.name,
+    manaCost: entry.manaCost,
+    cmc: entry.cmc,
+    typeLine: entry.typeLine,
+    imageUrl: entry.imagePath ? `${import.meta.env.BASE_URL}${entry.imagePath}` : undefined,
+    colors: entry.colors,
+  }
+}
+
 /** Preset-deck cards resolved ahead of time (scripts/fetch-card-assets.mjs), keyed by lowercased trimmed card name. */
 export const LOCAL_SCRYFALL_CACHE: Record<string, ScryfallCardData> = Object.fromEntries(
-  Object.entries(RAW).map(([key, entry]) => [
-    key,
-    {
-      scryfallId: entry.scryfallId,
-      name: entry.name,
-      manaCost: entry.manaCost,
-      cmc: entry.cmc,
-      typeLine: entry.typeLine,
-      imageUrl: entry.imagePath ? `${import.meta.env.BASE_URL}${entry.imagePath}` : undefined,
-      colors: entry.colors,
-    },
-  ]),
+  Object.entries(RAW).map(([key, entry]) => [key, resolve(entry)]),
 )
+
+/**
+ * The real Scryfall *token* card for each distinct token identity a preset-deck card produces
+ * (CreateCreature.count > 1 — name + power/toughness + keywords), resolved ahead of time the same
+ * way as LOCAL_SCRYFALL_CACHE. Key format defined by tokenCacheKeyFor below — must stay in sync
+ * with the (separately maintained, Node-side) copy in scripts/fetch-card-assets.mjs.
+ */
+export const LOCAL_TOKEN_SCRYFALL_CACHE: Record<string, ScryfallCardData> = Object.fromEntries(
+  Object.entries(RAW_TOKENS).map(([key, entry]) => [key, resolve(entry)]),
+)
+
+/** Builds a LOCAL_TOKEN_SCRYFALL_CACHE key from a CreateCreature effect's token identity. */
+export function tokenCacheKeyFor(tokenName: string, power: number, toughness: number, keywords: Keyword[]): string {
+  return `token:${tokenName.trim().toLowerCase()}|${power}/${toughness}|${[...keywords].map((k) => k.toLowerCase()).sort().join(',')}`
+}

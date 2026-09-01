@@ -75,9 +75,11 @@ The destinations offered by the menu (`destinationOptions` in `BotPanel.tsx`) ar
 
 ### Stacking identical creatures/permanents
 
-A Horde deck routinely puts many identical copies on the board at once (e.g. *Army of the Damned*'s 13 Zombie tokens) — rendering one full tile per instance would flood the grid with repeats carrying no extra information. `groupCreatures`/`groupPermanents` (`engine/battlefieldGrouping.ts`) group visually-indistinguishable entries (same name, stats, keywords, image) into a single stack, rendered by `CardStack` as one front tile with 1-2 offset, slightly rotated "backing" shapes behind it (capped at 2 regardless of how big the stack really is) and a "×N" count badge. Grouping is by *base* stats, not the derived ones from `getEffectiveStats` — every creature on the board shares the same `bot.permanents`, so identical base stats always mean identical effective stats too. `summoningSick` is part of the grouping key on purpose: two otherwise-identical creatures with different sickness (one just summoned, one from a previous turn) render as two separate stacks, so the "summoning sickness" note on a stack is never ambiguous.
+A Horde deck routinely puts many identical copies on the board at once (e.g. *Army of the Damned*'s 13 Zombie tokens) — rendering one full tile per instance would flood the grid with repeats carrying no extra information. `groupCreatures`/`groupPermanents` (`engine/battlefieldGrouping.ts`) group visually-indistinguishable entries (same name, stats, keywords, image) into a single stack, rendered by `CardStack` as one tile with a "×N" count badge in the corner. Grouping is by *base* stats, not the derived ones from `getEffectiveStats` — every creature on the board shares the same `bot.permanents`, so identical base stats always mean identical effective stats too. `summoningSick` is part of the grouping key on purpose: two otherwise-identical creatures with different sickness (one just summoned, one from a previous turn) render as two separate stacks, so the "summoning sickness" note on a stack is never ambiguous.
 
-Interaction is unchanged for a stack: click/right-click acts on **one** instance from it (arbitrarily the first), exactly as it would for a single ungrouped tile — the stack just shrinks by one and its badge count updates as instances leave, with no new bulk-action semantics introduced.
+The same grouping is used in `AttackOutcome` (the combat-outcome screen — see below): identical attackers render as one stack too, and a click marks **one more** of its instances dead (badge text becomes "M/N DEAD"); once every instance is marked, one more click revives the whole stack, mirroring the plain toggle a lone (ungrouped) attacker already had.
+
+Interaction is otherwise unchanged for a board/permanents stack: click/right-click acts on **one** instance from it (arbitrarily the first), exactly as it would for a single ungrouped tile — the stack just shrinks by one and its badge count updates as instances leave, with no new bulk-action semantics introduced.
 
 **Tokens ignore the chosen destination**: by Magic's rules, a token ceases to exist if it would change zones, so whatever option is picked for a token the result is always "removed permanently" (the menu for tokens in fact shows a single entry).
 
@@ -91,20 +93,29 @@ way as any other token (`isToken: true`, no `sourceDeckCardId`, summoning sick u
 picked), just without a `DeckCardConfig` behind it. It follows the same zone rules as every other
 token above: once it leaves the battlefield, it ceases to exist regardless of destination.
 
-### Tokens: type and colors
+### Tokens: real Scryfall art, and the type/colors fallback
 
-`BattlefieldCreature` can carry an optional `typeLine` and `colors` — set from the deck author's
-`tokenTypeLine`/`tokenColors` on a `CreateCreature` effect when it produces tokens (see
-[deck-format.md](deck-format.md#createcreature)), from the operator's input in `AddTokenModal` for
-player-granted tokens, or copied straight from a real card's own Scryfall data when it enters as
-its own body (a `count === 1` `CreateCreature`, or a card rebuilt via `buildBattlefieldCreatureFromCard`).
-Consistent with the rest of the app's philosophy (see "What the app tracks" above), the engine
-**never reads either field** — no template or instruction is conditioned on them. They exist purely
-so the table has something to check when a token has no card image to look at: whether a players'
-anthem effect applies to it, or whether it's a valid target for a color- or type-restricted removal
-spell. `BotPanel`/`AttackOutcome` only render this line for creatures without an image (a real
-card's own image already shows its type/colors), as small color pips (`ColorDots`) plus the type
-text.
+A `count > 1` `CreateCreature` card can carry `tokenScryfall` — the real Scryfall *token* card
+(not the spell that creates it) matching the token's name/power/toughness/keywords, e.g. the
+actual printed "Zombie" token, not *Army of the Damned*'s own card (see
+[deck-format.md](deck-format.md#createcreature)). When present, every token from that card gets a
+real image and its `typeLine`/`colors` straight from that token card, exactly like a `count === 1`
+card gets its own image from `DeckCardConfig.scryfall`. Both preset decks have this bundled locally
+the same way regular cards do — see "Local card bundle" in `architecture.md`.
+
+`tokenTypeLine`/`tokenColors` (plain text, no image) are the fallback for tokens without a bundled
+`tokenScryfall` — mainly custom decks, since there's no deck-builder UI yet to attach real token art
+by hand. `BattlefieldCreature.typeLine`/`colors` end up set one way or another regardless of the
+source (`tokenScryfall`, the plain-text fields, the operator's input in `AddTokenModal` for
+player-granted tokens, or copied from a real card's own Scryfall data for a `count === 1`
+`CreateCreature`/a card rebuilt via `buildBattlefieldCreatureFromCard`). Consistent with the rest of
+the app's philosophy (see "What the app tracks" above), the engine **never reads any of these
+fields for logic** — no template or instruction is conditioned on them. `typeLine`/`colors` exist
+purely so the table has something to check when a token has no card image to look at: whether a
+players' anthem effect applies to it, or whether it's a valid target for a color- or type-restricted
+removal spell. `BotPanel`/`AttackOutcome` only render that fallback line for creatures without an
+image (a real image already shows its own type/colors), as small color pips (`ColorDots`) plus the
+type text.
 
 ## Win/loss conditions
 

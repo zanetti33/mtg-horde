@@ -51,11 +51,22 @@ The `kind` field selects the template (see [game-design.md](game-design.md) for 
   "keywords": ["flying", "trample"],
   "tokenName": "Dragon",
   "tokenTypeLine": "Dragon",
-  "tokenColors": ["R"]
+  "tokenColors": ["R"],
+  "tokenScryfall": {
+    "scryfallId": "...",
+    "name": "Dragon",
+    "manaCost": "",
+    "cmc": 0,
+    "typeLine": "Token Creature — Dragon",
+    "imageUrl": "...",
+    "colors": ["R"]
+  }
 }
 ```
 
-`keywords` is a subset of: `flying, trample, deathtouch, lifelink, firststrike, doublestrike, menace, vigilance, reach, haste`. `tokenName`, `tokenTypeLine` and `tokenColors` are all optional, used only when `count` is more than 1 (otherwise the creature is the card itself, already showing its own type/colors on its Scryfall image). `tokenColors` is a subset of `W, U, B, R, G` — omit or leave empty for a colorless token. Both are purely informational: the engine never reads them (see [game-design.md](game-design.md#tokens-type-and-colors)), they just give the table something to check against their own buffs or removal when a token has no card image to look at.
+`keywords` is a subset of: `flying, trample, deathtouch, lifelink, firststrike, doublestrike, menace, vigilance, reach, haste`. `tokenName`, `tokenTypeLine`, `tokenColors` and `tokenScryfall` are all optional, used only when `count` is more than 1 (otherwise the creature is the card itself, already showing its own type/colors/image on its Scryfall image). `tokenColors` is a subset of `W, U, B, R, G` — omit or leave empty for a colorless token.
+
+`tokenScryfall` is the real Scryfall **token** card matching this token (not the spell that makes it) — same shape as the top-level `scryfall` field (see below), and when present it's what actually gives a token an image, superseding `tokenTypeLine`/`tokenColors` for display. The two preset decks populate it via `scripts/fetch-card-assets.mjs` (matched by token name + power/toughness/keywords, since e.g. more than one distinct "Zombie" token can exist under the same name); there's no deck-builder UI to set it by hand yet, so a custom deck's tokens fall back to the plain-text `tokenTypeLine`/`tokenColors` (no image) unless you set `tokenScryfall` directly in an imported JSON file. None of `tokenName`/`tokenTypeLine`/`tokenColors`/`tokenScryfall` are read by the engine's logic (see [game-design.md](game-design.md#tokens-real-scryfall-art-and-the-typecolors-fallback)) — they just give the table something to check (or look at) when a token would otherwise have no card image.
 
 ### `PumpBotBoard`
 

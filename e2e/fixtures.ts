@@ -39,6 +39,20 @@ export const THREE_TOKEN_DECK: DeckConfig = {
   ],
 }
 
+/** Same idea as THREE_TOKEN_DECK, but with haste — all 3 can attack the turn they're summoned, so this reliably reaches the combat-outcome screen as one 3-wide stack. */
+export const THREE_HASTE_TOKEN_DECK: DeckConfig = {
+  cards: [
+    {
+      id: 'e2e-three-haste-tokens',
+      scryfallName: 'E2E Haste Token Maker',
+      scryfall: { scryfallId: 'e2e-fixture-haste-tokens', name: 'E2E Haste Token Maker', manaCost: '', cmc: 0, typeLine: 'Sorcery', colors: [] },
+      effect: { kind: 'CreateCreature', count: 3, power: 1, toughness: 1, keywords: ['haste'], tokenName: 'E2E Haste Token' },
+      impact: 1,
+      category: 'horde',
+    },
+  ],
+}
+
 export function deckFile(deck: DeckConfig) {
   return { name: 'deck.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(deck)) }
 }

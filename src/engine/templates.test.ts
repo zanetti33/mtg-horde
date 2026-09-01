@@ -26,6 +26,32 @@ describe('applyCreateCreature', () => {
     expect(result.creatures.every((c) => c.summoningSick === false)).toBe(true)
     expect(result.creatures[0].name).toContain('Goblin')
   })
+
+  it('a token falls back to plain tokenTypeLine/tokenColors and no image when tokenScryfall is absent', () => {
+    const effect: CreateCreatureEffect = { kind: 'CreateCreature', count: 3, power: 2, toughness: 2, keywords: [], tokenName: 'Zombie', tokenTypeLine: 'Zombie', tokenColors: ['B'] }
+    const result = applyCreateCreature(card(effect), effect)
+    expect(result.creatures[0].imageUrl).toBeUndefined()
+    expect(result.creatures[0].typeLine).toBe('Zombie')
+    expect(result.creatures[0].colors).toEqual(['B'])
+  })
+
+  it('a token uses the real Scryfall token card (image/typeLine/colors) when tokenScryfall is present, overriding the plain text fields', () => {
+    const effect: CreateCreatureEffect = {
+      kind: 'CreateCreature',
+      count: 3,
+      power: 2,
+      toughness: 2,
+      keywords: [],
+      tokenName: 'Zombie',
+      tokenTypeLine: 'Zombie', // deliberately different from tokenScryfall's typeLine below
+      tokenColors: ['B'],
+      tokenScryfall: { scryfallId: 'tok1', name: 'Zombie', manaCost: '', cmc: 0, typeLine: 'Token Creature — Zombie', imageUrl: 'zombie-token.jpg', colors: ['B'] },
+    }
+    const result = applyCreateCreature(card(effect), effect)
+    expect(result.creatures[0].imageUrl).toBe('zombie-token.jpg')
+    expect(result.creatures[0].typeLine).toBe('Token Creature — Zombie')
+    expect(result.creatures[0].colors).toEqual(['B'])
+  })
 })
 
 describe('applyPumpBotBoard', () => {

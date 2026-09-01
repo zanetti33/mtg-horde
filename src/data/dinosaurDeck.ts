@@ -11,9 +11,12 @@ import { attachLocalScryfallData } from './attachLocalScryfallData'
 // Felidar below for the first use of this deck's own criterion slot).
 //
 // Every CreateCreature that produces tokens (count > 1) also carries tokenTypeLine/tokenColors —
-// purely informational (the engine never reads them), shown on the token card in BotPanel/
-// AttackOutcome since tokens have no card image for the table to check colors/type against their
-// own buffs or removal. See Color/BattlefieldCreature.typeLine in types.ts.
+// purely informational (the engine never reads them), a text fallback for when a token has no real
+// card image. `npm run fetch-cards` also resolves and bundles the real Scryfall *token* card for
+// each distinct token identity here (name + power/toughness/keywords), attached as
+// effect.tokenScryfall by attachLocalScryfallData.ts — that's what actually gives these tokens an
+// image in BotPanel/AttackOutcome, same as any other card. See "Tokens: real Scryfall art" in
+// docs/game-design.md and Color/BattlefieldCreature.typeLine in types.ts.
 //
 // Toxic Deluge and Triceraton Commander have a real X the table would normally choose by looking
 // at the board (Toxic Deluge's -X/-X, Triceraton Commander's "create X tokens"). Rather than ask
