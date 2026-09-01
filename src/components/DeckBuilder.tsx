@@ -337,7 +337,7 @@ export function DeckBuilder() {
         </div>
       </div>
 
-      <div>{locked ? <p className="text-sm text-slate-500">Switch to Custom (above) to add cards.</p> : <AddCardForm />}</div>
+      <div>{locked ? <p className="text-sm text-slate-500">Click "Customize this deck" on the left to add cards.</p> : <AddCardForm />}</div>
     </div>
   )
 }
