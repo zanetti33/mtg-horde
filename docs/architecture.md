@@ -32,6 +32,7 @@ src/
     effectSummary.ts           Readable summary of an effect for the deck builder UI
     effectDefaults.ts          Default values for each template, used when creating a new one
     botTurnEngine.ts            Orchestrator: draws, resolves the turn, declares attackers
+    battlefieldGrouping.ts      Groups identical creatures/permanents for BotPanel's stacked-pile display
 
   state/
     gameReducer.ts              Pure reducer (AppState = { deck, game }) + all actions
@@ -74,6 +75,7 @@ e2e/                          Playwright end-to-end smoke tests (see playwright.
 | `AddTokenModal` | Form to hand the bot a player-granted custom token (name, P/T, keywords, type, colors) |
 | `GameBoard` | Main view of a game in progress: "Play bot turn" button, coordinates the reveal log/outcome |
 | `BotPanel` | Life, zone counters, bot board + permanents (click/right-click to move creatures/permanents between zones, "+ Add token") |
+| `CardStack` | Wraps a board/permanent tile with the stacked-pile look (offset, rotated backing layers + a "×N" badge) for a group of identical entries — see `engine/battlefieldGrouping.ts` |
 | `CardContextMenu` | Generic context menu positioned at the cursor (used by `BotPanel`) |
 | `TurnLog` | Readable log of the bot's last turn, with the image of every card played |
 | `AttackOutcome` | Confirms which of the bot's attackers survived combat |

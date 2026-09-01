@@ -73,6 +73,12 @@ The destinations offered by the menu (`destinationOptions` in `BotPanel.tsx`) ar
 | Board (in play) | Only if the card has a `CreateCreature` effect — only those have a body to put into play. The creature is rebuilt from scratch with the template's base stats (`buildBattlefieldCreatureFromCard` in `templates.ts`). |
 | Permanents (in play) | Only if the card has a `CreatePermanent` effect — the `bot.permanents` equivalent of the row above (`buildPermanentFromCard` in `templates.ts`). |
 
+### Stacking identical creatures/permanents
+
+A Horde deck routinely puts many identical copies on the board at once (e.g. *Army of the Damned*'s 13 Zombie tokens) — rendering one full tile per instance would flood the grid with repeats carrying no extra information. `groupCreatures`/`groupPermanents` (`engine/battlefieldGrouping.ts`) group visually-indistinguishable entries (same name, stats, keywords, image) into a single stack, rendered by `CardStack` as one front tile with 1-2 offset, slightly rotated "backing" shapes behind it (capped at 2 regardless of how big the stack really is) and a "×N" count badge. Grouping is by *base* stats, not the derived ones from `getEffectiveStats` — every creature on the board shares the same `bot.permanents`, so identical base stats always mean identical effective stats too. `summoningSick` is part of the grouping key on purpose: two otherwise-identical creatures with different sickness (one just summoned, one from a previous turn) render as two separate stacks, so the "summoning sickness" note on a stack is never ambiguous.
+
+Interaction is unchanged for a stack: click/right-click acts on **one** instance from it (arbitrarily the first), exactly as it would for a single ungrouped tile — the stack just shrinks by one and its badge count updates as instances leave, with no new bulk-action semantics introduced.
+
 **Tokens ignore the chosen destination**: by Magic's rules, a token ceases to exist if it would change zones, so whatever option is picked for a token the result is always "removed permanently" (the menu for tokens in fact shows a single entry).
 
 ### Player-granted tokens

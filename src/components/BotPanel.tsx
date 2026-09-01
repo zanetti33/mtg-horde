@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { useAppState } from '../state/AppContext'
 import { summarizeEffect, summarizePermanent } from '../engine/effectSummary'
 import { getEffectiveStats } from '../engine/templates'
+import { groupCreatures, groupPermanents } from '../engine/battlefieldGrouping'
 import { KEYWORD_LABELS } from '../types'
 import type { CardDestination, CardRef, DeckCardConfig, Zone } from '../types'
 import { CardContextMenu, type ContextMenuOption } from './CardContextMenu'
 import { CardThumbnail } from './CardThumbnail'
+import { CardStack } from './CardStack'
 import { LifeCounter } from './LifeCounter'
 import { AddTokenModal, type CustomTokenInput } from './AddTokenModal'
 import { ColorDots } from './ColorDots'
@@ -145,43 +147,46 @@ export function BotPanel() {
           <p className="text-sm text-slate-500">No creatures in play.</p>
         ) : (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-            {bot.battlefield.map((creature) => {
+            {groupCreatures(bot.battlefield).map((group) => {
+              const creature = group.representative
+              const count = group.instanceIds.length
               const effective = getEffectiveStats(creature, bot.permanents)
               const isBuffed = effective.power !== creature.power || effective.toughness !== creature.toughness || effective.keywords.length !== creature.keywords.length
               return (
-                <button
-                  key={creature.instanceId}
-                  type="button"
-                  onClick={() => move('battlefield', creature.instanceId, { zone: 'graveyard' })}
-                  onContextMenu={(e) => openMenu('battlefield', creature.instanceId, e)}
-                  className="group relative overflow-hidden rounded border border-slate-800 bg-slate-950/60 p-2 text-left transition hover:border-red-700"
-                >
-                  {creature.imageUrl && (
-                    <CardThumbnail
-                      imageUrl={creature.imageUrl}
-                      alt={creature.name}
-                      className="mb-1 w-full rounded transition group-hover:opacity-40 group-hover:grayscale"
-                    />
-                  )}
-                  <p className="text-sm font-medium text-slate-100">{creature.name}</p>
-                  <p className={`text-xs ${isBuffed ? 'font-semibold text-emerald-300' : 'text-slate-400'}`}>
-                    {effective.power}/{effective.toughness}
-                    {creature.summoningSick && ' · summoning sickness'}
-                  </p>
-                  {effective.keywords.length > 0 && <p className="text-xs text-emerald-400">{effective.keywords.map((k) => KEYWORD_LABELS[k]).join(', ')}</p>}
-                  {/* Only shown when there's no card image to look at instead (tokens) — a real card's image already prints its type/colors. */}
-                  {!creature.imageUrl && (creature.typeLine || (creature.colors && creature.colors.length > 0)) && (
-                    <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
-                      <ColorDots colors={creature.colors} />
-                      {creature.typeLine}
+                <CardStack key={group.key} count={count} testId="battlefield-stack">
+                  <button
+                    type="button"
+                    onClick={() => move('battlefield', creature.instanceId, { zone: 'graveyard' })}
+                    onContextMenu={(e) => openMenu('battlefield', creature.instanceId, e)}
+                    className="group relative w-full overflow-hidden rounded border border-slate-800 bg-slate-950/60 p-2 text-left transition hover:border-red-700"
+                  >
+                    {creature.imageUrl && (
+                      <CardThumbnail
+                        imageUrl={creature.imageUrl}
+                        alt={creature.name}
+                        className="mb-1 w-full rounded transition group-hover:opacity-40 group-hover:grayscale"
+                      />
+                    )}
+                    <p className="text-sm font-medium text-slate-100">{creature.name}</p>
+                    <p className={`text-xs ${isBuffed ? 'font-semibold text-emerald-300' : 'text-slate-400'}`}>
+                      {effective.power}/{effective.toughness}
+                      {creature.summoningSick && ' · summoning sickness'}
                     </p>
-                  )}
+                    {effective.keywords.length > 0 && <p className="text-xs text-emerald-400">{effective.keywords.map((k) => KEYWORD_LABELS[k]).join(', ')}</p>}
+                    {/* Only shown when there's no card image to look at instead (tokens) — a real card's image already prints its type/colors. */}
+                    {!creature.imageUrl && (creature.typeLine || (creature.colors && creature.colors.length > 0)) && (
+                      <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
+                        <ColorDots colors={creature.colors} />
+                        {creature.typeLine}
+                      </p>
+                    )}
 
-                  <span className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5 bg-red-950/80 px-1 text-center text-red-200 opacity-0 transition group-hover:opacity-100">
-                    <span className="text-sm font-bold">✕ Graveyard</span>
-                    <span className="text-[10px] text-red-300">right-click: other options</span>
-                  </span>
-                </button>
+                    <span className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5 bg-red-950/80 px-1 text-center text-red-200 opacity-0 transition group-hover:opacity-100">
+                      <span className="text-sm font-bold">✕ Graveyard{count > 1 ? ' (1 of stack)' : ''}</span>
+                      <span className="text-[10px] text-red-300">right-click: other options</span>
+                    </span>
+                  </button>
+                </CardStack>
               )
             })}
           </div>
@@ -194,31 +199,36 @@ export function BotPanel() {
           <p className="text-sm text-slate-500">No artifacts or enchantments in play.</p>
         ) : (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-            {bot.permanents.map((permanent) => (
-              <button
-                key={permanent.instanceId}
-                type="button"
-                onClick={() => move('permanents', permanent.instanceId, { zone: 'graveyard' })}
-                onContextMenu={(e) => openMenu('permanents', permanent.instanceId, e)}
-                className="group relative overflow-hidden rounded border border-purple-900/60 bg-slate-950/60 p-2 text-left transition hover:border-red-700"
-              >
-                {permanent.imageUrl && (
-                  <CardThumbnail
-                    imageUrl={permanent.imageUrl}
-                    alt={permanent.name}
-                    className="mb-1 w-full rounded transition group-hover:opacity-40 group-hover:grayscale"
-                  />
-                )}
-                <p className="text-sm font-medium text-slate-100">{permanent.name}</p>
-                <p className="text-xs uppercase tracking-wide text-purple-300">{permanent.permanentType}</p>
-                <p className="text-xs text-emerald-400">{summarizePermanent(permanent)}</p>
+            {groupPermanents(bot.permanents).map((group) => {
+              const permanent = group.representative
+              const count = group.instanceIds.length
+              return (
+                <CardStack key={group.key} count={count} borderClassName="border-purple-900/60" testId="permanent-stack">
+                  <button
+                    type="button"
+                    onClick={() => move('permanents', permanent.instanceId, { zone: 'graveyard' })}
+                    onContextMenu={(e) => openMenu('permanents', permanent.instanceId, e)}
+                    className="group relative w-full overflow-hidden rounded border border-purple-900/60 bg-slate-950/60 p-2 text-left transition hover:border-red-700"
+                  >
+                    {permanent.imageUrl && (
+                      <CardThumbnail
+                        imageUrl={permanent.imageUrl}
+                        alt={permanent.name}
+                        className="mb-1 w-full rounded transition group-hover:opacity-40 group-hover:grayscale"
+                      />
+                    )}
+                    <p className="text-sm font-medium text-slate-100">{permanent.name}</p>
+                    <p className="text-xs uppercase tracking-wide text-purple-300">{permanent.permanentType}</p>
+                    <p className="text-xs text-emerald-400">{summarizePermanent(permanent)}</p>
 
-                <span className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5 bg-red-950/80 px-1 text-center text-red-200 opacity-0 transition group-hover:opacity-100">
-                  <span className="text-sm font-bold">✕ Graveyard</span>
-                  <span className="text-[10px] text-red-300">right-click: other options</span>
-                </span>
-              </button>
-            ))}
+                    <span className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5 bg-red-950/80 px-1 text-center text-red-200 opacity-0 transition group-hover:opacity-100">
+                      <span className="text-sm font-bold">✕ Graveyard{count > 1 ? ' (1 of stack)' : ''}</span>
+                      <span className="text-[10px] text-red-300">right-click: other options</span>
+                    </span>
+                  </button>
+                </CardStack>
+              )
+            })}
           </div>
         )}
       </div>

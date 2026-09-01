@@ -21,6 +21,24 @@ export const HASTE_CREATURE_DECK: DeckConfig = {
   ],
 }
 
+/**
+ * A single card that makes 3 identical tokens in one resolution (`CreateCreature.count: 3`) — all
+ * created together, so they share the same `summoningSick` state and are guaranteed to land in one
+ * `groupCreatures` stack (see engine/battlefieldGrouping.ts) as soon as the card resolves.
+ */
+export const THREE_TOKEN_DECK: DeckConfig = {
+  cards: [
+    {
+      id: 'e2e-three-tokens',
+      scryfallName: 'E2E Token Maker',
+      scryfall: { scryfallId: 'e2e-fixture-tokens', name: 'E2E Token Maker', manaCost: '', cmc: 0, typeLine: 'Sorcery', colors: [] },
+      effect: { kind: 'CreateCreature', count: 3, power: 1, toughness: 1, keywords: [], tokenName: 'E2E Token', tokenTypeLine: 'Illusion', tokenColors: [] },
+      impact: 1,
+      category: 'horde',
+    },
+  ],
+}
+
 export function deckFile(deck: DeckConfig) {
   return { name: 'deck.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(deck)) }
 }
