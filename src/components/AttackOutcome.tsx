@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAppState } from '../state/AppContext'
 import { CardThumbnail } from './CardThumbnail'
+import { ColorDots } from './ColorDots'
 
 export function AttackOutcome() {
   const { state, dispatch } = useAppState()
@@ -30,7 +31,7 @@ export function AttackOutcome() {
         After the players have declared blocks physically, click the bot's creatures that died in combat. Click again to undo.
       </p>
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
         {attackers.map((a) => {
           const isDead = eliminated.has(a.instanceId)
           return (
@@ -47,6 +48,12 @@ export function AttackOutcome() {
               <p className="text-xs text-slate-400">
                 {a.power}/{a.toughness}
               </p>
+              {!a.imageUrl && (a.typeLine || (a.colors && a.colors.length > 0)) && (
+                <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
+                  <ColorDots colors={a.colors} />
+                  {a.typeLine}
+                </p>
+              )}
 
               {isDead ? (
                 <span className="absolute right-1 top-1 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white">DEAD</span>

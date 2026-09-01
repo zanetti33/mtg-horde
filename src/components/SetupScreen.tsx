@@ -41,21 +41,29 @@ export function SetupScreen() {
           )}{' '}
           Once the game starts, the deck stays locked for its entire duration.
         </p>
-        <div className="flex flex-wrap gap-2">
-          {DECK_PRESETS.map((preset) => (
-            <button
-              key={preset.label}
-              type="button"
-              onClick={() => loadPreset(preset)}
-              className={`rounded border px-2 py-1 text-xs transition ${
-                state.deckSource === preset.label
-                  ? 'border-emerald-600 bg-emerald-950 text-emerald-300'
-                  : 'border-slate-700 text-slate-300 hover:bg-slate-800'
-              }`}
-            >
-              {preset.label} ({preset.deck.length}){state.deckSource === preset.label ? ' ✓' : ''}
-            </button>
-          ))}
+        <div className="space-y-2">
+          {DECK_PRESETS.map((preset) => {
+            const active = state.deckSource === preset.label
+            return (
+              <div key={preset.label} className={`rounded border p-2 ${active ? 'border-emerald-600 bg-emerald-950/30' : 'border-slate-800'}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className={`text-sm font-medium ${active ? 'text-emerald-300' : 'text-slate-200'}`}>
+                    {preset.label} ({preset.deck.length})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => loadPreset(preset)}
+                    className={`shrink-0 rounded border px-2 py-1 text-xs transition ${
+                      active ? 'border-emerald-600 bg-emerald-950 text-emerald-300' : 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                    }`}
+                  >
+                    {active ? 'Active ✓' : 'Load'}
+                  </button>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">{preset.description}</p>
+              </div>
+            )
+          })}
         </div>
       </div>
 

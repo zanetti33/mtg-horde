@@ -41,6 +41,25 @@ export const KEYWORD_LABELS: Record<Keyword, string> = {
   haste: 'Haste',
 }
 
+/**
+ * Mana color, in Scryfall's own single-letter convention — colorless is the empty array, not a
+ * value of this type. The engine never reads color/type (see game-design.md's "no Oracle text
+ * interpretation" philosophy): they're stored purely so the table has something to look at when a
+ * token has no card image to check — e.g. to know whether a players' anthem or removal spell that
+ * cares about color/creature type applies to it.
+ */
+export type Color = 'W' | 'U' | 'B' | 'R' | 'G'
+
+export const ALL_COLORS: Color[] = ['W', 'U', 'B', 'R', 'G']
+
+export const COLOR_LABELS: Record<Color, string> = {
+  W: 'White',
+  U: 'Blue',
+  B: 'Black',
+  R: 'Red',
+  G: 'Green',
+}
+
 /** Cached subset of Scryfall's card object — only what the UI/engine needs. */
 export interface ScryfallCardData {
   scryfallId: string
@@ -52,57 +71,58 @@ export interface ScryfallCardData {
   colors: string[]
 }
 
-/**
- * A numeric parameter that is either a fixed value, or derived from a single
- * operator-provided number at resolution time (Archenemy-style scaling),
- * e.g. "1 per artifact the players control, minimum 5" ->
- * { query: '...', multiplier: 1, offset: 0, min: 5 }.
- *
- * Kept as data (not a function) so DeckCardConfig stays JSON-serializable
- * for localStorage.
- */
-export type NumericValue = number | QueryValue
-
-export interface QueryValue {
-  query: string
-  multiplier: number
-  offset: number
-  min?: number
-  max?: number
-}
-
-export function isQueryValue(value: NumericValue): value is QueryValue {
-  return typeof value === 'object' && value !== null
-}
-
 // --- Effect templates -------------------------------------------------
 
 /** Modifies bot-tracked state directly. */
 export interface CreateCreatureEffect {
   kind: 'CreateCreature'
-  count: NumericValue
-  power: NumericValue
-  toughness: NumericValue
+  count: number
+  power: number
+  toughness: number
   keywords: Keyword[]
-  /** Display name for produced tokens when count resolves > 1. Defaults to the card's own name. */
+  /** Display name for produced tokens when count > 1. Defaults to the card's own name. */
   tokenName?: string
+  /** Creature type line for produced tokens (e.g. "Zombie", "Dinosaur Soldier") — only used when count > 1; a real card's own body already shows this on its Scryfall image. */
+  tokenTypeLine?: string
+  /** Colors for produced tokens — only used when count > 1, same reasoning as `tokenTypeLine`. */
+  tokenColors?: Color[]
 }
 
 export interface PumpBotBoardEffect {
   kind: 'PumpBotBoard'
-  powerBonus: NumericValue
-  toughnessBonus: NumericValue
+  powerBonus: number
+  toughnessBonus: number
+  grantKeywords: Keyword[]
+}
+
+/** Non-creature type of a `CreatePermanent` card — purely a display label (Artifact vs Enchantment badge in BotPanel), same non-interpreted role as `Color`/`typeLine` elsewhere: the engine treats both identically. */
+export type PermanentType = 'artifact' | 'enchantment'
+
+/**
+ * A static, persistent team-wide buff — the "real anthem" a real artifact/enchantment provides,
+ * as opposed to `PumpBotBoard`'s one-shot version (see `game-design.md`'s note on that
+ * simplification). Puts a `BotPermanent` into `BotState.permanents` instead of touching
+ * `BattlefieldCreature` stats directly: the bonus is derived (see `getEffectiveStats` in
+ * `engine/templates.ts`) everywhere a creature's stats are read, so it also applies to creatures
+ * that enter play *after* this one resolves, and disappears again if the permanent is later
+ * destroyed/exiled like any other card.
+ */
+export interface CreatePermanentEffect {
+  kind: 'CreatePermanent'
+  permanentType: PermanentType
+  powerBonus: number
+  toughnessBonus: number
   grantKeywords: Keyword[]
 }
 
 export interface GainLifeBotEffect {
   kind: 'GainLifeBot'
-  amount: NumericValue
+  amount: number
 }
 
 export interface DrawExtraBotEffect {
   kind: 'DrawExtraBot'
-  amount: NumericValue
+  amount: number
 }
 
 /** Generates only a text instruction for the table to resolve themselves — no tracked state is touched. */
@@ -111,7 +131,7 @@ export type RemovalMode = 'highestPower' | 'highestToughness' | 'highestManaValu
 export interface RemovalInstructionEffect {
   kind: 'RemovalInstruction'
   mode: RemovalMode
-  count: NumericValue
+  count: number
   destroyOrExile: 'destroy' | 'exile'
 }
 
@@ -119,23 +139,23 @@ export type DamageTarget = 'eachPlayer' | 'creatureHighestPower' | 'creatureHigh
 
 export interface DamageInstructionEffect {
   kind: 'DamageInstruction'
-  amount: NumericValue
+  amount: number
   target: DamageTarget
 }
 
 export interface SacrificeInstructionEffect {
   kind: 'SacrificeInstruction'
   perPlayer: boolean
-  count: NumericValue
+  count: number
 }
 
 export interface DiscardInstructionEffect {
   kind: 'DiscardInstruction'
   perPlayer: boolean
-  count: NumericValue
+  count: number
 }
 
-export type BotStateEffect = CreateCreatureEffect | PumpBotBoardEffect | GainLifeBotEffect | DrawExtraBotEffect
+export type BotStateEffect = CreateCreatureEffect | PumpBotBoardEffect | CreatePermanentEffect | GainLifeBotEffect | DrawExtraBotEffect
 export type TableInstructionEffect =
   | RemovalInstructionEffect
   | DamageInstructionEffect
@@ -146,10 +166,66 @@ export type EffectParams = BotStateEffect | TableInstructionEffect
 export type EffectTemplateId = EffectParams['kind']
 
 export function isBotStateEffect(effect: EffectParams): effect is BotStateEffect {
-  return effect.kind === 'CreateCreature' || effect.kind === 'PumpBotBoard' || effect.kind === 'GainLifeBot' || effect.kind === 'DrawExtraBot'
+  return (
+    effect.kind === 'CreateCreature' ||
+    effect.kind === 'PumpBotBoard' ||
+    effect.kind === 'CreatePermanent' ||
+    effect.kind === 'GainLifeBot' ||
+    effect.kind === 'DrawExtraBot'
+  )
 }
 
 // --- Deck configuration -------------------------------------------------
+
+/**
+ * Official tactical categorization of a deck card — orthogonal to `effect.kind` (which is about
+ * how the engine resolves it) and to `impact` (how threatening it is). Assigned by whoever curates
+ * the deck, not derived automatically, since the same `kind` can serve different tactical roles
+ * (e.g. `PumpBotBoard` covers both a permanent `lord` and a one-shot `teamPump`).
+ */
+export type CardCategory =
+  | 'horde' // 2+ creatures/tokens from one card, few or no keywords — swarm plays
+  | 'bigBad' // a single creature with at least one keyword — a named threat, not just a body
+  | 'grunt' // a single creature with no keyword — plain filler body
+  | 'specificRemoval' // each player loses/sacrifices one creature of their own (edict, or a criterion like highest power)
+  | 'aoe' // damage or -X/-X to all of the players' creatures — doesn't guarantee a full wipe
+  | 'boardClear' // unconditionally destroys/exiles all of the players' creatures
+  | 'lord' // permanent team-wide buff to the bot's board (anthem), regardless of the source's own type
+  | 'teamPump' // one-shot team-wide buff (a combat trick, not a permanent anthem)
+  | 'draw' // the bot draws extra cards
+  | 'lifeGain' // the bot gains life
+  | 'faceDamage' // damage/life loss straight to the players, bypassing creatures
+  | 'discard' // forces the players to discard
+
+export const ALL_CARD_CATEGORIES: CardCategory[] = [
+  'horde',
+  'bigBad',
+  'grunt',
+  'specificRemoval',
+  'aoe',
+  'boardClear',
+  'lord',
+  'teamPump',
+  'draw',
+  'lifeGain',
+  'faceDamage',
+  'discard',
+]
+
+export const CARD_CATEGORY_LABELS: Record<CardCategory, string> = {
+  horde: 'Horde',
+  bigBad: 'Big bad',
+  grunt: 'Grunt',
+  specificRemoval: 'Specific removal',
+  aoe: 'AOE',
+  boardClear: 'Board clear',
+  lord: 'Lord',
+  teamPump: 'Team pump',
+  draw: 'Draw',
+  lifeGain: 'Life gain',
+  faceDamage: 'Face damage',
+  discard: 'Discard',
+}
 
 export interface DeckCardConfig {
   /** Unique id for this deck entry (not the Scryfall id — allows duplicate copies of a card). */
@@ -166,6 +242,12 @@ export interface DeckCardConfig {
    * was assigned by hand.
    */
   impact?: number
+  /**
+   * Official tactical category (see `CardCategory` above) — optional so cards added before this
+   * field existed, or from the deck builder without picking one, stay valid. Missing/undefined
+   * means "uncategorized", not a specific category.
+   */
+  category?: CardCategory
   /**
    * Optional custom-rule text ("errata") that REPLACES the auto-generated
    * instruction for this card. For real cards whose resolution depends on
@@ -209,6 +291,25 @@ export interface BattlefieldCreature {
   keywords: Keyword[]
   summoningSick: boolean
   sourceDeckCardId?: string
+  /** Creature type line — from the card's own Scryfall data for real cards, from `tokenTypeLine`/a player's custom-token form for tokens. Purely informational, see `Color` above. */
+  typeLine?: string
+  /** Colors — same provenance/purpose as `typeLine`. */
+  colors?: string[]
+}
+
+/** A resolved `CreatePermanent` card sitting in play — see that effect for why this is a separate zone from `battlefield` instead of a `BattlefieldCreature` flag: it's not a creature, so it never attacks/blocks and doesn't belong in the board grid. */
+export interface BotPermanent {
+  instanceId: string
+  name: string
+  imageUrl?: string
+  permanentType: PermanentType
+  powerBonus: number
+  toughnessBonus: number
+  grantKeywords: Keyword[]
+  sourceDeckCardId: string
+  /** Same provenance/purpose as `BattlefieldCreature.typeLine` — see `Color` above. */
+  typeLine?: string
+  colors?: string[]
 }
 
 export interface BotState {
@@ -216,6 +317,7 @@ export interface BotState {
   library: CardRef[]
   hand: CardRef[]
   battlefield: BattlefieldCreature[]
+  permanents: BotPermanent[]
   graveyard: CardRef[]
   exile: CardRef[]
 }
@@ -224,7 +326,7 @@ export interface BotState {
 export type LibraryPosition = { kind: 'top' } | { kind: 'bottom' } | { kind: 'nth'; n: number }
 
 /** One of the bot's own tracked zones. */
-export type Zone = 'library' | 'hand' | 'battlefield' | 'graveyard' | 'exile'
+export type Zone = 'library' | 'hand' | 'battlefield' | 'permanents' | 'graveyard' | 'exile'
 
 /**
  * Where a bot card can be sent, from any zone it currently sits in — the
@@ -233,7 +335,8 @@ export type Zone = 'library' | 'hand' | 'battlefield' | 'graveyard' | 'exile'
  * battlefield — they cease to exist regardless of the chosen destination.
  * `battlefield` is only reachable for cards whose effect is `CreateCreature`
  * (see `buildBattlefieldCreatureFromCard` in templates.ts) — everything else
- * has no permanent body to put into play.
+ * has no permanent body to put into play. `permanents` is the equivalent
+ * destination for `CreatePermanent` cards (see `buildPermanentFromCard`).
  */
 export type CardDestination =
   | { zone: 'graveyard' }
@@ -241,6 +344,7 @@ export type CardDestination =
   | { zone: 'exile' }
   | { zone: 'library'; position: LibraryPosition }
   | { zone: 'battlefield' }
+  | { zone: 'permanents' }
 
 export type Difficulty = 'easy' | 'normal' | 'hard'
 
@@ -264,15 +368,13 @@ export interface TurnLogEntry {
 }
 
 /**
- * Bookkeeping for a bot turn currently being revealed card by card. The
- * query answers are collected once, up front, and reused as each card in
- * `bot.hand` (which doubles as the turn's remaining queue — see
+ * Bookkeeping for a bot turn currently being revealed card by card, as each
+ * card in `bot.hand` (which doubles as the turn's remaining queue — see
  * `orderHandForResolution` in botTurnEngine.ts) is individually resolved or
  * countered. `extraDraws` accumulates any `DrawExtraBot` bonus draws seen so
  * far, folded into the next turn's hand size once the queue empties.
  */
 export interface PendingTurn {
-  queryAnswers: Record<string, number>
   extraDraws: number
 }
 

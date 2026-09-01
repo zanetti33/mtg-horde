@@ -1,71 +1,14 @@
 import type {
   BattlefieldCreature,
+  BotPermanent,
   CreateCreatureEffect,
+  CreatePermanentEffect,
   DeckCardConfig,
-  EffectTemplateId,
   GainLifeBotEffect,
   DrawExtraBotEffect,
   Keyword,
-  NumericValue,
   PumpBotBoardEffect,
 } from '../types'
-import { isQueryValue } from '../types'
-
-/** Which fields of each effect kind are NumericValue (and therefore may carry a query). */
-const NUMERIC_FIELDS: Record<EffectTemplateId, string[]> = {
-  CreateCreature: ['count', 'power', 'toughness'],
-  PumpBotBoard: ['powerBonus', 'toughnessBonus'],
-  GainLifeBot: ['amount'],
-  DrawExtraBot: ['amount'],
-  RemovalInstruction: ['count'],
-  DamageInstruction: ['amount'],
-  SacrificeInstruction: ['count'],
-  DiscardInstruction: ['count'],
-}
-
-export interface QueryPrompt {
-  /** Unique key identifying this query slot: `${deckCardId}:${fieldName}`. */
-  key: string
-  prompt: string
-  cardName: string
-}
-
-// Keyed by card + question text (not field name): two fields on the same
-// card asking the identical question (e.g. Bane of Progress's power and
-// toughness) share one answer instead of prompting twice.
-function queryKey(deckCardId: string, query: string): string {
-  return `${deckCardId}:${query}`
-}
-
-/** Scans a deck card's effect params for query-driven numeric fields. */
-export function collectQueriesForCard(card: DeckCardConfig): QueryPrompt[] {
-  const fields = NUMERIC_FIELDS[card.effect.kind] ?? []
-  const prompts: QueryPrompt[] = []
-  const seenKeys = new Set<string>()
-  for (const field of fields) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const value = (card.effect as any)[field] as NumericValue | undefined
-    if (value !== undefined && isQueryValue(value)) {
-      const key = queryKey(card.id, value.query)
-      if (seenKeys.has(key)) continue
-      seenKeys.add(key)
-      prompts.push({ key, prompt: value.query, cardName: card.scryfallName })
-    }
-  }
-  return prompts
-}
-
-/** Resolves one numeric field of a card's effect to a concrete number. */
-export function resolveNumeric(card: DeckCardConfig, field: string, queryAnswers: Record<string, number>): number {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const value = (card.effect as any)[field] as NumericValue
-  if (typeof value === 'number') return value
-  const answer = queryAnswers[queryKey(card.id, value.query)] ?? 0
-  let result = answer * value.multiplier + value.offset
-  if (value.min !== undefined) result = Math.max(value.min, result)
-  if (value.max !== undefined) result = Math.min(value.max, result)
-  return result
-}
 
 function newInstanceId(): string {
   return crypto.randomUUID()
@@ -76,13 +19,17 @@ export interface CreateCreatureResult {
   description: string
 }
 
-export function applyCreateCreature(card: DeckCardConfig, effect: CreateCreatureEffect, queryAnswers: Record<string, number>): CreateCreatureResult {
-  const count = Math.max(0, Math.round(resolveNumeric(card, 'count', queryAnswers)))
-  const power = Math.round(resolveNumeric(card, 'power', queryAnswers))
-  const toughness = Math.round(resolveNumeric(card, 'toughness', queryAnswers))
+export function applyCreateCreature(card: DeckCardConfig, effect: CreateCreatureEffect): CreateCreatureResult {
+  const count = Math.max(0, effect.count)
+  const power = effect.power
+  const toughness = effect.toughness
   const isToken = count !== 1
   const hasHaste = effect.keywords.includes('haste')
   const baseName = isToken ? (effect.tokenName ?? card.scryfallName) : card.scryfallName
+  // A real card's own Scryfall image already shows its type/colors; tokens have no image, so they
+  // carry the deck author's tokenTypeLine/tokenColors instead (see Color in types.ts).
+  const typeLine = isToken ? effect.tokenTypeLine : card.scryfall?.typeLine
+  const colors = isToken ? effect.tokenColors : card.scryfall?.colors
 
   const creatures: BattlefieldCreature[] = Array.from({ length: count }, () => ({
     instanceId: newInstanceId(),
@@ -94,15 +41,18 @@ export function applyCreateCreature(card: DeckCardConfig, effect: CreateCreature
     keywords: effect.keywords,
     summoningSick: !hasHaste,
     sourceDeckCardId: card.id,
+    typeLine,
+    colors,
   }))
 
   const keywordSuffix = effect.keywords.length > 0 ? ` (${effect.keywords.join(', ')})` : ''
+  const colorPrefix = isToken && effect.tokenColors && effect.tokenColors.length > 0 ? ` ${effect.tokenColors.join('/')}` : ''
   const description =
     count === 0
       ? 'no effect (0 creatures generated)'
       : count === 1
         ? `summons ${baseName} ${power}/${toughness}${keywordSuffix}`
-        : `summons ${count} ${baseName} tokens ${power}/${toughness}${keywordSuffix}`
+        : `summons ${count}${colorPrefix} ${baseName} tokens ${power}/${toughness}${keywordSuffix}`
 
   return { creatures, description }
 }
@@ -114,16 +64,13 @@ export function applyCreateCreature(card: DeckCardConfig, effect: CreateCreature
  * the given instance id (the card keeps its identity across zones) and
  * always produces exactly one non-token creature: only `CreateCreature`
  * cards have a body to put into play, and moving a real card back to the
- * battlefield is never the "make N tokens" reading of `count`. Numeric
- * fields driven by a query resolve with no answers (falls back to
- * `offset`/`min`), since this happens outside the turn-resolution flow that
- * collects query answers up front.
+ * battlefield is never the "make N tokens" reading of `count`.
  */
 export function buildBattlefieldCreatureFromCard(card: DeckCardConfig, instanceId: string): BattlefieldCreature | null {
   if (card.effect.kind !== 'CreateCreature') return null
   const effect = card.effect
-  const power = Math.round(resolveNumeric(card, 'power', {}))
-  const toughness = Math.round(resolveNumeric(card, 'toughness', {}))
+  const power = effect.power
+  const toughness = effect.toughness
   const hasHaste = effect.keywords.includes('haste')
 
   return {
@@ -136,6 +83,8 @@ export function buildBattlefieldCreatureFromCard(card: DeckCardConfig, instanceI
     keywords: effect.keywords,
     summoningSick: !hasHaste,
     sourceDeckCardId: card.id,
+    typeLine: card.scryfall?.typeLine,
+    colors: card.scryfall?.colors,
   }
 }
 
@@ -144,14 +93,9 @@ export interface PumpBoardResult {
   description: string
 }
 
-export function applyPumpBotBoard(
-  card: DeckCardConfig,
-  effect: PumpBotBoardEffect,
-  queryAnswers: Record<string, number>,
-  battlefield: BattlefieldCreature[],
-): PumpBoardResult {
-  const powerBonus = Math.round(resolveNumeric(card, 'powerBonus', queryAnswers))
-  const toughnessBonus = Math.round(resolveNumeric(card, 'toughnessBonus', queryAnswers))
+export function applyPumpBotBoard(effect: PumpBotBoardEffect, battlefield: BattlefieldCreature[]): PumpBoardResult {
+  const powerBonus = effect.powerBonus
+  const toughnessBonus = effect.toughnessBonus
   const grant = effect.grantKeywords
 
   const updated = battlefield.map((creature) => ({
@@ -168,12 +112,91 @@ export function applyPumpBotBoard(
   return { battlefield: updated, description }
 }
 
-export function applyGainLifeBot(card: DeckCardConfig, _effect: GainLifeBotEffect, queryAnswers: Record<string, number>) {
-  const amount = Math.round(resolveNumeric(card, 'amount', queryAnswers))
+export interface CreatePermanentResult {
+  permanent: BotPermanent
+  description: string
+}
+
+/** Resolves a `CreatePermanent` card into a new `BotPermanent` — see that effect in types.ts for why this doesn't touch `battlefield` directly. */
+export function applyCreatePermanent(card: DeckCardConfig, effect: CreatePermanentEffect): CreatePermanentResult {
+  const permanent: BotPermanent = {
+    instanceId: newInstanceId(),
+    name: card.scryfallName,
+    imageUrl: card.scryfall?.imageUrl,
+    permanentType: effect.permanentType,
+    powerBonus: effect.powerBonus,
+    toughnessBonus: effect.toughnessBonus,
+    grantKeywords: effect.grantKeywords,
+    sourceDeckCardId: card.id,
+    typeLine: card.scryfall?.typeLine,
+    colors: card.scryfall?.colors,
+  }
+
+  const parts: string[] = []
+  if (effect.powerBonus !== 0 || effect.toughnessBonus !== 0) parts.push(`+${effect.powerBonus}/+${effect.toughnessBonus}`)
+  if (effect.grantKeywords.length > 0) parts.push(`grants ${effect.grantKeywords.join(', ')}`)
+  const buff = parts.length > 0 ? parts.join(' and ') : 'no ongoing effect'
+  const description = `a permanent ${effect.permanentType} enters play — the bot's creatures (now and in the future) get ${buff}`
+
+  return { permanent, description }
+}
+
+/**
+ * Builds the permanent object for a `CreatePermanent` card re-entering play
+ * from another zone — the `permanents`-zone counterpart of
+ * `buildBattlefieldCreatureFromCard`, used by the same "move any card to any
+ * zone" operator action.
+ */
+export function buildPermanentFromCard(card: DeckCardConfig, instanceId: string): BotPermanent | null {
+  if (card.effect.kind !== 'CreatePermanent') return null
+  const effect = card.effect
+  return {
+    instanceId,
+    name: card.scryfallName,
+    imageUrl: card.scryfall?.imageUrl,
+    permanentType: effect.permanentType,
+    powerBonus: effect.powerBonus,
+    toughnessBonus: effect.toughnessBonus,
+    grantKeywords: effect.grantKeywords,
+    sourceDeckCardId: card.id,
+    typeLine: card.scryfall?.typeLine,
+    colors: card.scryfall?.colors,
+  }
+}
+
+export interface EffectiveStats {
+  power: number
+  toughness: number
+  keywords: Keyword[]
+}
+
+/**
+ * A creature's displayed stats, derived from its own base stats plus every active permanent's
+ * buff — the "real anthem" behavior `CreatePermanent` exists for (see types.ts): the sum is
+ * recomputed every time this is called rather than baked into `BattlefieldCreature` once, so a
+ * permanent's effect disappears the moment it's destroyed/exiled, and a creature that entered play
+ * before the permanent did still benefits from it once it's on board. `creature.power`/`toughness`
+ * themselves are never mutated by this — everywhere they're *shown* to the table should call this
+ * instead of reading the raw fields.
+ */
+export function getEffectiveStats(creature: BattlefieldCreature, permanents: BotPermanent[]): EffectiveStats {
+  let power = creature.power
+  let toughness = creature.toughness
+  const keywords = new Set<Keyword>(creature.keywords)
+  for (const permanent of permanents) {
+    power += permanent.powerBonus
+    toughness += permanent.toughnessBonus
+    for (const keyword of permanent.grantKeywords) keywords.add(keyword)
+  }
+  return { power, toughness, keywords: Array.from(keywords) }
+}
+
+export function applyGainLifeBot(effect: GainLifeBotEffect) {
+  const amount = effect.amount
   return { amount, description: `the bot gains ${amount} life` }
 }
 
-export function applyDrawExtraBot(card: DeckCardConfig, _effect: DrawExtraBotEffect, queryAnswers: Record<string, number>) {
-  const amount = Math.round(resolveNumeric(card, 'amount', queryAnswers))
+export function applyDrawExtraBot(effect: DrawExtraBotEffect) {
+  const amount = effect.amount
   return { amount, description: `the bot draws ${amount} extra card${amount === 1 ? '' : 's'}` }
 }

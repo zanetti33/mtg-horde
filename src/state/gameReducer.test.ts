@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { appReducer, type AppState } from './gameReducer'
-import type { BattlefieldCreature, DeckCardConfig, GameState } from '../types'
+import type { BattlefieldCreature, BotPermanent, DeckCardConfig, GameState } from '../types'
 
 const creatureCard: DeckCardConfig = { id: 'c1', scryfallName: 'Hill Giant', effect: { kind: 'CreateCreature', count: 1, power: 3, toughness: 3, keywords: [] } }
 const hasteCreatureCard: DeckCardConfig = { id: 'c2', scryfallName: 'Raider', effect: { kind: 'CreateCreature', count: 1, power: 2, toughness: 2, keywords: ['haste'] } }
 const removalCard: DeckCardConfig = { id: 'r1', scryfallName: 'Doom Blade', effect: { kind: 'RemovalInstruction', mode: 'highestPower', count: 1, destroyOrExile: 'destroy' } }
+const permanentCard: DeckCardConfig = { id: 'p1', scryfallName: 'Glorious Anthem', effect: { kind: 'CreatePermanent', permanentType: 'enchantment', powerBonus: 1, toughnessBonus: 1, grantKeywords: [] } }
 
-const deckSnapshot = [creatureCard, hasteCreatureCard, removalCard]
+const deckSnapshot = [creatureCard, hasteCreatureCard, removalCard, permanentCard]
 
 function makeState(game: Partial<GameState['bot']>): AppState {
   const bot: GameState['bot'] = {
@@ -14,6 +15,7 @@ function makeState(game: Partial<GameState['bot']>): AppState {
     library: [],
     hand: [],
     battlefield: [],
+    permanents: [],
     graveyard: [],
     exile: [],
     ...game,
@@ -96,6 +98,30 @@ describe('MOVE_CARD', () => {
     const result = appReducer(state, { type: 'MOVE_CARD', instanceId: 'does-not-exist', origin: 'graveyard', destination: { zone: 'hand' } })
     expect(result.game?.bot).toEqual(state.game?.bot)
   })
+
+  it('a permanent destroyed leaves the permanents zone and becomes a CardRef in the destination zone', () => {
+    const permanent: BotPermanent = { instanceId: 'perm1', name: 'Glorious Anthem', permanentType: 'enchantment', powerBonus: 1, toughnessBonus: 1, grantKeywords: [], sourceDeckCardId: 'p1' }
+    const state = makeState({ permanents: [permanent] })
+    const result = appReducer(state, { type: 'MOVE_CARD', instanceId: 'perm1', origin: 'permanents', destination: { zone: 'graveyard' } })
+    expect(result.game?.bot.permanents).toHaveLength(0)
+    expect(result.game?.bot.graveyard).toEqual([{ instanceId: 'perm1', deckCardId: 'p1' }])
+  })
+
+  it('rebuilds a permanent when a CreatePermanent card is put into play from the graveyard', () => {
+    const state = makeState({ graveyard: [{ instanceId: 'g1', deckCardId: 'p1' }] })
+    const result = appReducer(state, { type: 'MOVE_CARD', instanceId: 'g1', origin: 'graveyard', destination: { zone: 'permanents' } })
+    expect(result.game?.bot.graveyard).toHaveLength(0)
+    expect(result.game?.bot.permanents).toEqual([
+      { instanceId: 'g1', name: 'Glorious Anthem', imageUrl: undefined, permanentType: 'enchantment', powerBonus: 1, toughnessBonus: 1, grantKeywords: [], sourceDeckCardId: 'p1', typeLine: undefined, colors: undefined },
+    ])
+  })
+
+  it('leaves the card untouched when asked to put a non-permanent card into the permanents zone', () => {
+    const state = makeState({ hand: [{ instanceId: 'h1', deckCardId: 'r1' }] })
+    const result = appReducer(state, { type: 'MOVE_CARD', instanceId: 'h1', origin: 'hand', destination: { zone: 'permanents' } })
+    expect(result.game?.bot.hand).toEqual([{ instanceId: 'h1', deckCardId: 'r1' }])
+    expect(result.game?.bot.permanents).toHaveLength(0)
+  })
 })
 
 describe('BEGIN_BOT_TURN / RESOLVE_TURN_CARD (card-by-card reveal)', () => {
@@ -108,7 +134,7 @@ describe('BEGIN_BOT_TURN / RESOLVE_TURN_CARD (card-by-card reveal)', () => {
       library: [{ instanceId: 'lib1', deckCardId: 'c2' }],
     })
 
-    const begun = appReducer(state, { type: 'BEGIN_BOT_TURN', queryAnswers: {} })
+    const begun = appReducer(state, { type: 'BEGIN_BOT_TURN' })
     expect(begun.game?.phase).toBe('resolvingTurn')
     expect(begun.game?.turnLog).toEqual([])
     // Reordered: the removal (table instruction) comes first even though it was drawn second.
@@ -131,7 +157,7 @@ describe('BEGIN_BOT_TURN / RESOLVE_TURN_CARD (card-by-card reveal)', () => {
 
   it('countering a card sends it to the graveyard without applying its effect', () => {
     const state = makeState({ hand: [{ instanceId: 'h1', deckCardId: 'c1' }] })
-    const begun = appReducer(state, { type: 'BEGIN_BOT_TURN', queryAnswers: {} })
+    const begun = appReducer(state, { type: 'BEGIN_BOT_TURN' })
     const result = appReducer(begun, { type: 'RESOLVE_TURN_CARD', countered: true })
 
     expect(result.game?.bot.battlefield).toHaveLength(0) // countered — never entered play
@@ -143,10 +169,32 @@ describe('BEGIN_BOT_TURN / RESOLVE_TURN_CARD (card-by-card reveal)', () => {
     const sickCreature: BattlefieldCreature = { instanceId: 'b1', name: 'Veteran', isToken: false, power: 1, toughness: 1, keywords: [], summoningSick: true, sourceDeckCardId: 'c1' }
     const state = makeState({ hand: [], battlefield: [sickCreature], library: [{ instanceId: 'lib1', deckCardId: 'c2' }] })
 
-    const result = appReducer(state, { type: 'BEGIN_BOT_TURN', queryAnswers: {} })
+    const result = appReducer(state, { type: 'BEGIN_BOT_TURN' })
     expect(result.game?.phase).toBe('awaitingAttackOutcome')
     expect(result.game?.pendingAttackers).toHaveLength(1)
     expect(result.game?.bot.hand).toEqual([{ instanceId: 'lib1', deckCardId: 'c2' }])
+  })
+
+  it('resolving a CreatePermanent card adds it to bot.permanents, and a haste-granting permanent lets an otherwise-sick creature attack', () => {
+    const sickCreature: BattlefieldCreature = { instanceId: 'b1', name: 'Veteran', isToken: false, power: 1, toughness: 1, keywords: [], summoningSick: true, sourceDeckCardId: 'c1' }
+    const hasteAnthem: DeckCardConfig = { id: 'p2', scryfallName: 'Concordant Crossroads', effect: { kind: 'CreatePermanent', permanentType: 'enchantment', powerBonus: 0, toughnessBonus: 0, grantKeywords: ['haste'] } }
+    const state = makeState({
+      hand: [{ instanceId: 'h1', deckCardId: 'p2' }],
+      battlefield: [sickCreature],
+      library: [],
+    })
+    state.deck = [...deckSnapshot, hasteAnthem]
+    state.game!.deckSnapshot = state.deck
+
+    const begun = appReducer(state, { type: 'BEGIN_BOT_TURN' })
+    const result = appReducer(begun, { type: 'RESOLVE_TURN_CARD', countered: false })
+
+    expect(result.game?.bot.permanents).toHaveLength(1)
+    expect(result.game?.bot.permanents[0]).toMatchObject({ name: 'Concordant Crossroads', grantKeywords: ['haste'] })
+    // Queue now empty -> turn finalized: the previously-sick creature attacks anyway, thanks to the anthem's haste.
+    expect(result.game?.phase).toBe('awaitingAttackOutcome')
+    expect(result.game?.pendingAttackers).toHaveLength(1)
+    expect(result.game?.pendingAttackers?.[0]).toMatchObject({ instanceId: 'b1', keywords: ['haste'] })
   })
 })
 

@@ -1,11 +1,13 @@
-import type { DamageTarget, EffectParams, EffectTemplateId, RemovalMode } from '../types'
+import type { DamageTarget, EffectParams, EffectTemplateId, PermanentType, RemovalMode } from '../types'
 import { defaultEffectFor, TEMPLATE_LABELS } from '../engine/effectDefaults'
-import { NumericValueEditor } from './NumericValueEditor'
+import { NumberField } from './NumberField'
 import { KeywordPicker } from './KeywordPicker'
+import { ColorPicker } from './ColorPicker'
 
 const TEMPLATE_IDS: EffectTemplateId[] = [
   'CreateCreature',
   'PumpBotBoard',
+  'CreatePermanent',
   'GainLifeBot',
   'DrawExtraBot',
   'RemovalInstruction',
@@ -13,6 +15,12 @@ const TEMPLATE_IDS: EffectTemplateId[] = [
   'SacrificeInstruction',
   'DiscardInstruction',
 ]
+
+const PERMANENT_TYPES: PermanentType[] = ['artifact', 'enchantment']
+const PERMANENT_TYPE_LABEL: Record<PermanentType, string> = {
+  artifact: 'Artifact',
+  enchantment: 'Enchantment',
+}
 
 const REMOVAL_MODES: RemovalMode[] = ['highestPower', 'highestToughness', 'highestManaValue', 'random', 'all']
 const REMOVAL_MODE_LABEL: Record<RemovalMode, string> = {
@@ -53,13 +61,40 @@ export function EffectForm({ effect, onChange }: { effect: EffectParams; onChang
       {effect.kind === 'CreateCreature' && (
         <>
           <div className="grid grid-cols-3 gap-2">
-            <NumericValueEditor label="Count" value={effect.count} onChange={(count) => onChange({ ...effect, count })} />
-            <NumericValueEditor label="Power" value={effect.power} onChange={(power) => onChange({ ...effect, power })} />
-            <NumericValueEditor label="Toughness" value={effect.toughness} onChange={(toughness) => onChange({ ...effect, toughness })} />
+            <NumberField label="Count" value={effect.count} onChange={(count) => onChange({ ...effect, count })} />
+            <NumberField label="Power" value={effect.power} onChange={(power) => onChange({ ...effect, power })} />
+            <NumberField label="Toughness" value={effect.toughness} onChange={(toughness) => onChange({ ...effect, toughness })} />
           </div>
           <div>
             <span className="mb-1 block text-xs font-medium text-slate-300">Keywords</span>
             <KeywordPicker selected={effect.keywords} onChange={(keywords) => onChange({ ...effect, keywords })} />
+          </div>
+          <div className="rounded border border-slate-800 p-2">
+            <p className="mb-2 text-xs text-slate-500">Only used when Count resolves to more than 1 (i.e. the card makes tokens, not its own body).</p>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-slate-300">Token name</span>
+              <input
+                type="text"
+                value={effect.tokenName ?? ''}
+                onChange={(e) => onChange({ ...effect, tokenName: e.target.value || undefined })}
+                placeholder="Defaults to the card's own name"
+                className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100"
+              />
+            </label>
+            <label className="mt-2 block">
+              <span className="mb-1 block text-xs font-medium text-slate-300">Token type line</span>
+              <input
+                type="text"
+                value={effect.tokenTypeLine ?? ''}
+                onChange={(e) => onChange({ ...effect, tokenTypeLine: e.target.value || undefined })}
+                placeholder="e.g. Zombie, Dinosaur Soldier"
+                className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100"
+              />
+            </label>
+            <div className="mt-2">
+              <span className="mb-1 block text-xs font-medium text-slate-300">Token colors</span>
+              <ColorPicker selected={effect.tokenColors ?? []} onChange={(tokenColors) => onChange({ ...effect, tokenColors })} />
+            </div>
           </div>
         </>
       )}
@@ -67,8 +102,8 @@ export function EffectForm({ effect, onChange }: { effect: EffectParams; onChang
       {effect.kind === 'PumpBotBoard' && (
         <>
           <div className="grid grid-cols-2 gap-2">
-            <NumericValueEditor label="Power bonus" value={effect.powerBonus} onChange={(powerBonus) => onChange({ ...effect, powerBonus })} />
-            <NumericValueEditor label="Toughness bonus" value={effect.toughnessBonus} onChange={(toughnessBonus) => onChange({ ...effect, toughnessBonus })} />
+            <NumberField label="Power bonus" value={effect.powerBonus} onChange={(powerBonus) => onChange({ ...effect, powerBonus })} />
+            <NumberField label="Toughness bonus" value={effect.toughnessBonus} onChange={(toughnessBonus) => onChange({ ...effect, toughnessBonus })} />
           </div>
           <div>
             <span className="mb-1 block text-xs font-medium text-slate-300">Keywords granted</span>
@@ -77,8 +112,39 @@ export function EffectForm({ effect, onChange }: { effect: EffectParams; onChang
         </>
       )}
 
+      {effect.kind === 'CreatePermanent' && (
+        <>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-slate-300">Permanent type</span>
+            <select
+              value={effect.permanentType}
+              onChange={(e) => onChange({ ...effect, permanentType: e.target.value as PermanentType })}
+              className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100"
+            >
+              {PERMANENT_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {PERMANENT_TYPE_LABEL[t]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <NumberField label="Power bonus" value={effect.powerBonus} onChange={(powerBonus) => onChange({ ...effect, powerBonus })} />
+            <NumberField label="Toughness bonus" value={effect.toughnessBonus} onChange={(toughnessBonus) => onChange({ ...effect, toughnessBonus })} />
+          </div>
+          <div>
+            <span className="mb-1 block text-xs font-medium text-slate-300">Keywords granted</span>
+            <KeywordPicker selected={effect.grantKeywords} onChange={(grantKeywords) => onChange({ ...effect, grantKeywords })} />
+          </div>
+          <p className="text-xs text-slate-500">
+            Unlike "Buff the bot board", this stays in play as its own permanent: it also buffs creatures that enter play later, and can be
+            destroyed/exiled like any other card (see the "Bot permanents" section in-game).
+          </p>
+        </>
+      )}
+
       {(effect.kind === 'GainLifeBot' || effect.kind === 'DrawExtraBot') && (
-        <NumericValueEditor label="Amount" value={effect.amount} onChange={(amount) => onChange({ ...effect, amount })} />
+        <NumberField label="Amount" value={effect.amount} onChange={(amount) => onChange({ ...effect, amount })} />
       )}
 
       {effect.kind === 'RemovalInstruction' && (
@@ -97,7 +163,7 @@ export function EffectForm({ effect, onChange }: { effect: EffectParams; onChang
               ))}
             </select>
           </label>
-          {effect.mode !== 'all' && <NumericValueEditor label="How many creatures" value={effect.count} onChange={(count) => onChange({ ...effect, count })} />}
+          {effect.mode !== 'all' && <NumberField label="How many creatures" value={effect.count} onChange={(count) => onChange({ ...effect, count })} />}
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-slate-300">Destroy or exile</span>
             <select
@@ -114,7 +180,7 @@ export function EffectForm({ effect, onChange }: { effect: EffectParams; onChang
 
       {effect.kind === 'DamageInstruction' && (
         <>
-          <NumericValueEditor label="Damage amount" value={effect.amount} onChange={(amount) => onChange({ ...effect, amount })} />
+          <NumberField label="Damage amount" value={effect.amount} onChange={(amount) => onChange({ ...effect, amount })} />
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-slate-300">Target</span>
             <select
@@ -134,7 +200,7 @@ export function EffectForm({ effect, onChange }: { effect: EffectParams; onChang
 
       {(effect.kind === 'SacrificeInstruction' || effect.kind === 'DiscardInstruction') && (
         <>
-          <NumericValueEditor label="Count" value={effect.count} onChange={(count) => onChange({ ...effect, count })} />
+          <NumberField label="Count" value={effect.count} onChange={(count) => onChange({ ...effect, count })} />
           <label className="flex items-center gap-2 text-sm text-slate-300">
             <input type="checkbox" checked={effect.perPlayer} onChange={(e) => onChange({ ...effect, perPlayer: e.target.checked })} />
             Per player (otherwise: total among all)

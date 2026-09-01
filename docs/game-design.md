@@ -21,6 +21,7 @@ Only the **bot's** state ([`BotState`](../src/types.ts)):
 | `library` | The bot's deck, shuffled at the start of the game. |
 | `hand` | The cards the bot will play on its **next** turn — drawn ahead of time, at the end of the previous turn's resolution (see [Bot turn flow](#bot-turn-flow)), as soon as they're needed. This is why it's never "empty between turns": it stays full and visible throughout the players' turns, specifically so the table can interact with it (discard, add cards, etc.) before it gets resolved. |
 | `battlefield` | The bot's creatures/tokens currently in play. |
+| `permanents` | The bot's artifacts/enchantments currently in play — non-creature permanents that keep buffing the board persistently (see `CreatePermanent` below), separate from `battlefield` since they never attack/block. |
 | `graveyard` | The bot's cards that ended up in the graveyard. |
 | `exile` | The bot's exiled cards. |
 
@@ -31,7 +32,7 @@ Players' board is **not** represented in any data structure of the app: it stays
 Turns alternate physically as in a normal game (player 1 → 2 → 3 → 4 → bot → back to 1...). The app comes into play at two points:
 
 - **During the players' turns**: if something happens involving the bot (players attack the bot, destroy one of its creatures, heal it, etc.), the operator manually updates `BotPanel` — edits the life field, or clicks/right-clicks a card in any zone to move it to another (see [Bot zones](#bot-zones-and-moving-cards)). This is also when the bot's hand — already drawn for the next turn — is exposed to player interaction: discarding it, forcing the bot to replay a specific card, etc.
-- **On the bot's turn**: the operator clicks "Play bot turn" and the app resolves the whole turn automatically (see below), pausing only to collect any numeric input and to have the combat outcome confirmed.
+- **On the bot's turn**: the operator clicks "Play bot turn" and the app resolves the whole turn automatically (see below), pausing only to have the combat outcome confirmed.
 
 ## Bot turn flow
 
@@ -41,38 +42,63 @@ Implemented in [`botTurnEngine.ts`](../src/engine/botTurnEngine.ts) (the pure si
 
 **The turn is revealed one card at a time, not all at once.** The table needs to be able to decide whether to respond to a specific bot card (e.g. counter it) before knowing what else the bot will play that turn — exactly like in a normal game, where cards are seen one at a time as they're cast. That's why the turn is a small state machine rather than a function that immediately produces the final result:
 
-1. **Collecting questions.** When the operator clicks "Play bot turn", the app scans the **already-drawn** hand and gathers all the "query" questions needed (see [NumericValue](#numericvalue-fixed-values-or-questions)) into a single screen (`QueryInputModal`), so the operator answers once while looking at the table, instead of being interrupted card by card. Answers stay valid for the whole turn.
-2. **Turn start** (`BEGIN_BOT_TURN`). Summoning sickness is cleared from creatures already in play (they've been under the bot's control since the start of its previous turn), and the hand is reordered for resolution: first the `TableInstruction`s (removal, damage, sacrifice, discard) — so the table "clears" the threat before the bot develops more creatures — then the `BotStateEffect`s (creatures, pump, life gain, extra draws), in the order they were drawn. This reordered hand **is** the turn's reveal queue: the phase switches to `resolvingTurn` and the first card is shown (`CurrentCardReveal`).
-3. **Card-by-card reveal** (`RESOLVE_TURN_CARD`). At each step the table sees only the card at the front of the queue (name, image, effect) and decides:
+1. **Turn start** (`BEGIN_BOT_TURN`). Summoning sickness is cleared from creatures already in play (they've been under the bot's control since the start of its previous turn), and the hand is reordered for resolution: first the `TableInstruction`s (removal, damage, sacrifice, discard) — so the table "clears" the threat before the bot develops more creatures — then the `BotStateEffect`s (creatures, pump, life gain, extra draws), in the order they were drawn. This reordered hand **is** the turn's reveal queue: the phase switches to `resolvingTurn` and the first card is shown (`CurrentCardReveal`).
+2. **Card-by-card reveal** (`RESOLVE_TURN_CARD`). At each step the table sees only the card at the front of the queue (name, image, effect) and decides:
    - **Resolve** — the effect applies normally (`resolveSingleCard`) and the card goes to the graveyard (creatures stay in play instead).
    - **Countered** — the card still goes to the graveyard (a countered card was cast anyway), but **no effect** applies: no creature enters play, no damage, no bonus draw (`counterSingleCard`).
 
-   Either way the card leaves the queue (`bot.hand` shrinks by one card) and a row is added to the log (`TurnLogEntry`). This repeats until the queue is empty. If the hand is already empty at the start of the turn, it skips straight to step 4.
-4. **End of turn** (automatic as soon as the queue empties). Attackers are declared — every bot creature without summoning sickness, including ones just summoned if they have `haste` — and the hand for the next turn is drawn: `config.drawPerTurn` cards (plus any extra draws, see below). `drawPerTurn` remains the main lever for making the bot more or less challenging against 4 players.
-5. **Combat outcome.** If there are attackers, the app waits (`phase: 'awaitingAttackOutcome'`): once the table has resolved blocks physically, the operator clicks on the bot's attackers that died in `AttackOutcome`. Non-token creatures that died go to the bot's graveyard; tokens simply cease to exist. Otherwise it goes straight back to `idle`.
-6. Life/library are recomputed (library already updated by step 4's draw) to determine the game's status (see below).
+   Either way the card leaves the queue (`bot.hand` shrinks by one card) and a row is added to the log (`TurnLogEntry`). This repeats until the queue is empty. If the hand is already empty at the start of the turn, it skips straight to step 3.
+3. **End of turn** (automatic as soon as the queue empties). Attackers are declared — every bot creature without summoning sickness, including ones just summoned if they have `haste` — and the hand for the next turn is drawn: `config.drawPerTurn` cards (plus any extra draws, see below). `drawPerTurn` remains the main lever for making the bot more or less challenging against 4 players.
+4. **Combat outcome.** If there are attackers, the app waits (`phase: 'awaitingAttackOutcome'`): once the table has resolved blocks physically, the operator clicks on the bot's attackers that died in `AttackOutcome`. Non-token creatures that died go to the bot's graveyard; tokens simply cease to exist. Otherwise it goes straight back to `idle`.
+5. Life/library are recomputed (library already updated by step 3's draw) to determine the game's status (see below).
 
-The state of the turn in progress (`GameState.pendingTurn`: the query answers and the total extra draws accumulated so far) lives in the persisted `GameState`, not in local component state — refreshing the page mid-turn resumes exactly where it left off.
+The state of the turn in progress (`GameState.pendingTurn`: the total extra draws accumulated so far) lives in the persisted `GameState`, not in local component state — refreshing the page mid-turn resumes exactly where it left off.
 
 ### Cards drawn by `DrawExtraBot`
 
-If a card has a `DrawExtraBot` effect, the extra cards drawn are **not** resolved in the same turn: resolving them would require collecting any of their "mid-turn" questions, which the app deliberately avoids (point 1 above). They simply add to the draw count for the next turn (point 4): the resulting hand has `drawPerTurn + extraDraws` cards instead of just `drawPerTurn`. A countered `DrawExtraBot` card contributes nothing, like any other countered card.
+If a card has a `DrawExtraBot` effect, the extra cards drawn are **not** resolved in the same turn: resolving them immediately would mean a turn that keeps growing while it's being revealed, instead of a fixed queue the table sees through card by card. They simply add to the draw count for the next turn (point 3): the resulting hand has `drawPerTurn + extraDraws` cards instead of just `drawPerTurn`. A countered `DrawExtraBot` card contributes nothing, like any other countered card.
 
 ## Bot zones and moving cards
 
-`BotPanel` displays all 5 of the bot's tracked zones — board, hand, graveyard, exile, library — and lets you move **any card, from any zone, to any other zone** (`MOVE_CARD` in [`gameReducer.ts`](../src/state/gameReducer.ts)). This is meant to mirror any physical zone change involving the bot: mill, bounce, reanimation, correcting an operator mistake, etc. — not just "a bot creature dies in combat". Only the board stays always visible: it's the one zone the operator checks every turn, while hand, graveyard, exile and library start out **collapsed** (a toggle for each, with the count always visible in the header) to keep the screen uncluttered.
+`BotPanel` displays all 6 of the bot's tracked zones — board, permanents, hand, graveyard, exile, library — and lets you move **any card, from any zone, to any other zone** (`MOVE_CARD` in [`gameReducer.ts`](../src/state/gameReducer.ts)). This is meant to mirror any physical zone change involving the bot: mill, bounce, reanimation, correcting an operator mistake, etc. — not just "a bot creature dies in combat". Only the board and the permanents section stay always visible: they're what the operator checks every turn, while hand, graveyard, exile and library start out **collapsed** (a toggle for each, with the count always visible in the header) to keep the screen uncluttered.
 
-On the board, left-clicking a creature = it goes to the graveyard (the default action, the most common case: the creature died). Right-click opens the menu with all the other destinations. In the other zones (hand, library, graveyard, exile) there's no equally obvious default action, so every card opens the move menu directly on click (left or right).
+On the board and in the permanents section, left-clicking = it goes to the graveyard (the default action, the most common case: the creature died / the permanent was destroyed). Right-click opens the menu with all the other destinations. In the other zones (hand, library, graveyard, exile) there's no equally obvious default action, so every card opens the move menu directly on click (left or right).
 
-The destinations offered by the menu (`destinationOptions` in `BotPanel.tsx`) are always every zone except the starting one, with one exception:
+The destinations offered by the menu (`destinationOptions` in `BotPanel.tsx`) are always every zone except the starting one, with two exceptions:
 
 | Destination | When it's available |
 |---|---|
 | Hand / Graveyard / Exile | Always (except from that same zone). |
 | Library (top / bottom / position N) | Always (except from the library itself). |
-| Board (in play) | Only if the card has a `CreateCreature` effect — only those have a body to put into play. The creature is rebuilt from scratch with the template's base stats (`buildBattlefieldCreatureFromCard` in `templates.ts`); any "query" values use the no-answer fallback (`offset`/`min`), since this restoration happens outside the turn-resolution flow that collects questions. |
+| Board (in play) | Only if the card has a `CreateCreature` effect — only those have a body to put into play. The creature is rebuilt from scratch with the template's base stats (`buildBattlefieldCreatureFromCard` in `templates.ts`). |
+| Permanents (in play) | Only if the card has a `CreatePermanent` effect — the `bot.permanents` equivalent of the row above (`buildPermanentFromCard` in `templates.ts`). |
 
 **Tokens ignore the chosen destination**: by Magic's rules, a token ceases to exist if it would change zones, so whatever option is picked for a token the result is always "removed permanently" (the menu for tokens in fact shows a single entry).
+
+### Player-granted tokens
+
+Some players' own cards give the bot a token directly (e.g. "create a 1/1 Fish for an opponent"),
+outside of anything in the bot's own deck. The "+ Add token" button next to the board header opens
+`AddTokenModal`, where the operator fills in a name, power/toughness, keywords, and optionally a
+type line and colors, then dispatches `ADD_CUSTOM_TOKEN` — a `BattlefieldCreature` built the same
+way as any other token (`isToken: true`, no `sourceDeckCardId`, summoning sick unless `haste` is
+picked), just without a `DeckCardConfig` behind it. It follows the same zone rules as every other
+token above: once it leaves the battlefield, it ceases to exist regardless of destination.
+
+### Tokens: type and colors
+
+`BattlefieldCreature` can carry an optional `typeLine` and `colors` — set from the deck author's
+`tokenTypeLine`/`tokenColors` on a `CreateCreature` effect when it produces tokens (see
+[deck-format.md](deck-format.md#createcreature)), from the operator's input in `AddTokenModal` for
+player-granted tokens, or copied straight from a real card's own Scryfall data when it enters as
+its own body (a `count === 1` `CreateCreature`, or a card rebuilt via `buildBattlefieldCreatureFromCard`).
+Consistent with the rest of the app's philosophy (see "What the app tracks" above), the engine
+**never reads either field** — no template or instruction is conditioned on them. They exist purely
+so the table has something to check when a token has no card image to look at: whether a players'
+anthem effect applies to it, or whether it's a valid target for a color- or type-restricted removal
+spell. `BotPanel`/`AttackOutcome` only render this line for creatures without an image (a real
+card's own image already shows its type/colors), as small color pips (`ColorDots`) plus the type
+text.
 
 ## Win/loss conditions
 
@@ -92,9 +118,18 @@ Every card in the bot's deck ([`DeckCardConfig`](../src/types.ts)) has an `effec
 | Template | Parameters | Effect |
 |---|---|---|
 | `CreateCreature` | `count`, `power`, `toughness`, `keywords[]`, `tokenName?` | Puts `count` creatures on the bot's board. If `count` resolves to 1, it's the card itself (non-token, with its image); if >1, they're tokens (no image, name = `tokenName` or the card's name). Summoning sickness unless they have `haste`. |
-| `PumpBotBoard` | `powerBonus`, `toughnessBonus`, `grantKeywords[]` | **Permanent** buff (not "until end of turn" — a deliberate simplification, see below) to all bot creatures in play at the time of resolution. |
+| `PumpBotBoard` | `powerBonus`, `toughnessBonus`, `grantKeywords[]` | One-shot buff, baked directly into stats, applied only to bot creatures in play **at the time of resolution** — a deliberate simplification, see below. |
+| `CreatePermanent` | `permanentType` (`artifact` \| `enchantment`), `powerBonus`, `toughnessBonus`, `grantKeywords[]` | Puts a `BotPermanent` into `bot.permanents` — a genuinely **persistent** anthem: the buff is derived (`getEffectiveStats`, see below) everywhere a creature's stats are read, so it also reaches creatures that enter play *after* this one resolves, and disappears again if the permanent is later destroyed/exiled like any other card. |
 | `GainLifeBot` | `amount` | The bot gains life. |
 | `DrawExtraBot` | `amount` | The bot draws extra cards (resolved next turn, see above). |
+
+#### `PumpBotBoard` vs. `CreatePermanent`: two different anthem trade-offs
+
+`PumpBotBoard` predates `CreatePermanent` and stays deliberately simple: it mutates `BattlefieldCreature.power`/`toughness`/`keywords` directly, once, for whatever's on the board at that instant. It's used today to represent creature-based "lords" (e.g. *Death Baron*, *Regal Imperiosaur*) — the trade-off there is losing the lord's own body as a separate threat in exchange for an accurate team-wide buff, since the engine has no way to keep a creature *and* a continuous effect tied to it. It's a fine reading for a card whose lord ability *is* its whole identity, but it does mean a creature the bot draws after the lord resolves gets no benefit from it, and there's no way to "kill" the anthem short of the whole board being wiped.
+
+`CreatePermanent` exists for real, standalone artifacts/enchantments (an anthem, a keyword-granter — see `docs/roadmap.md` item 4), where that trade-off doesn't hold: the card has no creature body to give up, and destroying the permanent should visibly turn the anthem off. It resolves into a `BotPermanent` (its own zone, `bot.permanents`) instead of touching any creature's stats directly. Every place a creature's stats are *shown* — `BotPanel`'s board grid, `AttackOutcome`, the attackers line in the turn log — calls `getEffectiveStats(creature, bot.permanents)` (`engine/templates.ts`) instead of reading `power`/`toughness`/`keywords` off the creature directly: base stats plus the sum of every active permanent's bonus, recomputed on every read rather than baked in once. This is also why a `grantKeywords: ['haste']` permanent is more than cosmetic: `declareAttackers` checks the *effective* keyword set, so a creature that's still summoning-sick can attack anyway while such a permanent is in play, same as a real haste anthem.
+
+`bot.permanents` is a card's own zone, parallel to `battlefield`: a `CreatePermanent` card leaving play (destroyed, exiled, bounced) follows the same "move any card to any zone" path as everything else (see [Bot zones](#bot-zones-and-moving-cards)) — it just isn't a creature, so it never attacks/blocks and isn't offered as a combat-outcome casualty.
 
 ### `TableInstruction` — generate text only, don't touch tracked state
 
@@ -107,33 +142,46 @@ Every card in the bot's deck ([`DeckCardConfig`](../src/types.ts)) has an `effec
 
 The exact text is generated by [`instructionText.ts`](../src/engine/instructionText.ts).
 
-For `TableInstruction`s, always prefer modes/targets that are **symmetric or chosen by the table without the bot exercising judgment** (`all`, `allCreatures`, `eachPlayer`, the two sacrifice/discard `*Instruction`s) over `highestPower`/`highestToughness`/`highestManaValue`/`random`: the former correspond to real non-targeted cards (wraths, edicts), the latter are a fallback for reinterpreting single-target cards (e.g. "Doom Blade") that the bot, not seeing the board, couldn't otherwise aim sensibly. The [zombie](../src/data/zombieDeck.ts) and [dinosaur](../src/data/dinosaurDeck.ts) decks follow this criterion strictly.
+For `TableInstruction`s, the rule is **no arbitrary choice made by the bot**, not "no single target." Two families satisfy it: symmetric modes/targets applied the same way to every player (`all`, `allCreatures`, `eachPlayer`, the two sacrifice/discard `*Instruction`s — real wraths and edicts), and single-target modes with an **objective criterion** the table applies to its own board (`highestPower`/`highestToughness`/`highestManaValue`/`random` — real single-target removal like "Doom Blade" reinterpreted this way). Both are equally valid; the bot never picks a target either way. The [zombie](../src/data/zombieDeck.ts) and [dinosaur](../src/data/dinosaurDeck.ts) decks currently only use the symmetric family — the `highestPower`/etc. modes are supported and tested (see `botTurnEngine.test.ts`) but not yet used by either preset deck.
 
 ### `errata`: custom rules for cards no template can express on its own
 
-A `DeckCardConfig` can have an optional `errata: string` field that **replaces** the text generated by the template for that card (see [deck-format.md](deck-format.md#errata--custom-rules)). Use it sparingly, only when the real card has a modal resolution that depends on the players' board (which the bot can't see) and no existing `mode`/`target` captures it — e.g. *Extinction Event*, which asks you to pick the option (mana value ≤3 or ≥4) that would hit more of the players' creatures. It shouldn't be used for scalar values that can be eyeballed: those stay `NumericValue` with `query` (see above).
+A `DeckCardConfig` can have an optional `errata: string` field that **replaces** the text generated by the template for that card (see [deck-format.md](deck-format.md#errata--custom-rules)). Use it sparingly, only when the real card has a modal resolution that depends on the players' board (which the bot can't see) and no existing `mode`/`target` captures it — e.g. *Extinction Event*, which asks you to pick the option (mana value ≤3 or ≥4) that would hit more of the players' creatures. It shouldn't be used for a card whose only variable is a **number**: those are curated as several deck entries with a fixed number each (see below), not an errata.
 
-### `NumericValue`: fixed values or questions
+### Numeric parameters: always a fixed number
 
-Any numeric parameter of a template (`count`, `power`, `amount`, ...) can be:
-
-- **a fixed number**, or
-- **a question** (Archenemy-style): `{ query: string, multiplier: number, offset: number, min?: number, max?: number }`. At resolution time, the app asks the operator for a number (e.g. "How many artifacts do the players control?") and computes `result = answer × multiplier + offset`, then clamps it to `[min, max]` if specified.
-
-Real example from the prebuilt deck — *Bane of Progress*, which becomes a 4/4 creature +1/+1 for each artifact/enchantment the players control:
-
-```json
-{
-  "power": { "query": "How many artifacts and enchantments do the players control?", "multiplier": 1, "offset": 4, "min": 4 },
-  "toughness": { "query": "How many artifacts and enchantments do the players control?", "multiplier": 1, "offset": 4, "min": 4 }
-}
-```
-
-If two fields on the same card share the exact same question (as above), the app asks it **only once** and reuses the answer for both (dedup by question text, not by field — see `collectQueriesForCard` in `templates.ts`).
+Every numeric parameter of a template (`count`, `power`, `amount`, ...) is a plain fixed number, decided by the deck curator — the app never asks the operator a question mid-turn. A real card whose printed effect scales with a variable X (an artifact count, devotion, "-X/-X" with X chosen) is represented as **several deck entries, one per fixed X**, spread across the `impact` tiers — e.g. *Toxic Deluge* (real text: "-X/-X to all creatures") appears three times in both preset decks, at X=1/3/5 for impact 1/2/3, instead of one entry that asks the operator to look at the board and type a number. See *Toxic Deluge*, *Triceraton Commander*, and *Debt to the Deathless* in the [zombie](../src/data/zombieDeck.ts)/[dinosaur](../src/data/dinosaurDeck.ts) decks for real examples.
 
 ## Deck curation criteria
 
 The app ships with two prebuilt decks, listed in [`src/data/presets.ts`](../src/data/presets.ts) and loadable from the "New game" screen (`SetupScreen`, before starting the game — once a game is in progress the bot's deck stays the one locked into `deckSnapshot`, see below): [zombie](../src/data/zombieDeck.ts) and [dinosaur](../src/data/dinosaurDeck.ts), each a themed deck with many copies of the same cards (as a real Horde deck needs, to last several turns). The cards chosen for these decks — and the ones added by hand from the deck builder — must have a real effect that maps cleanly and directly onto one of the templates above: vanilla creatures or ones with simple keywords, unconditional removal, flat damage, flat buffs, single-variable scaling effects. Cards with complex Oracle text, multiple conditions, replacement effects, or stack interactions are deliberately avoided — not because the system couldn't support them in theory, but because forcing them into a template would distort their effect. When a real card has more nuance than can be represented (e.g. "destroy target non-black creature" simply becomes "destroy a creature"), the simplest reading is always chosen, even if that makes it slightly stronger or weaker than the original — an accepted trade-off, balanced out by the difficulty levers (see below).
+
+Every card in both prebuilt decks also carries `DeckCardConfig.category` (`CardCategory`, see [deck-format.md](deck-format.md#card-category)) — the official tactical role (`horde`, `bigBad`, `grunt`, `specificRemoval`, `aoe`, `boardClear`, `lord`, `teamPump`, `draw`, `lifeGain`, `faceDamage`, `discard`), assigned by hand and independent of `effect.kind`.
+
+### Creature accuracy: real stats, and when to swap the card instead of the number
+
+A `CreateCreature` card's own body (`count: 1`) always uses the real card's **printed power,
+toughness, and keywords** — never a number picked to "feel right" for the curve. Verify against
+Scryfall, don't estimate from memory or reuse a neighboring card's stats.
+
+Every creature loses *some* text in this mapping — that's the whole premise of the template system
+(see "What the app tracks" above). A **single** minor or narrow ability (an Enrage trigger, a
+one-shot sacrifice-to-destroy-an-artifact clause, an upkeep drawback) is dropped silently, same as
+any other simplification, and the card stays. But when a real creature's text carries **two or
+more** abilities beyond its keywords — or a single ability that's really a second template in
+disguise (a lord's team-wide buff, an ETB token-maker, a keyword this engine has no `Keyword` for,
+like protection or swampwalk) — showing it as a plain body misrepresents what the card actually
+does, not just trims it. In that case, don't curve the numbers to compensate and keep the card:
+swap it for a **different real card** that actually is vanilla, vanilla-plus-keywords, or an
+unconditional token-maker, so what's on screen is what the table would expect from the name and
+image. (A card whose dropped ability *is* cleanly another template — e.g. a real lord — can instead
+be remapped to that template, own body traded away, same as the existing lords below; that's a
+judgment call between "swap the card" and "remap the same card," not a rule to automate.)
+
+A conditional keyword that's true almost the entire game in context (e.g. "has vigilance as long as
+you control another Dinosaur," in a ~80-card mostly-Dinosaur deck) is simplified to unconditional,
+consistent with the general "simplest reading, even if slightly stronger/weaker" principle above —
+that's not the same as inventing a keyword the real card never had.
 
 ## Difficulty levers
 

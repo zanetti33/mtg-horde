@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { BattlefieldCreature, BotState, DeckCardConfig } from '../types'
+import type { BattlefieldCreature, BotPermanent, BotState, DeckCardConfig } from '../types'
 import {
   clearSummoningSickness,
   counterSingleCard,
   declareAttackers,
   drawForTurn,
   drawNextTurnHand,
-  getPendingQueries,
   orderHandForResolution,
   recomputeStatus,
   resolveSingleCard,
@@ -35,6 +34,7 @@ function makeBot(overrides: Partial<BotState> = {}): BotState {
     ],
     hand: [],
     battlefield: [],
+    permanents: [],
     graveyard: [],
     exile: [],
     ...overrides,
@@ -68,19 +68,6 @@ describe('drawForTurn', () => {
   })
 })
 
-describe('getPendingQueries', () => {
-  it('collects distinct queries from different cards without cross-card dedup', () => {
-    const queryCardA: DeckCardConfig = { id: 'q1', scryfallName: 'A', effect: { kind: 'GainLifeBot', amount: { query: 'How many X?', multiplier: 1, offset: 0 } } }
-    const queryCardB: DeckCardConfig = { id: 'q2', scryfallName: 'B', effect: { kind: 'GainLifeBot', amount: { query: 'How many X?', multiplier: 1, offset: 0 } } }
-    const hand = [
-      { instanceId: 'a', deckCardId: 'q1' },
-      { instanceId: 'b', deckCardId: 'q2' },
-    ]
-    const prompts = getPendingQueries(hand, [queryCardA, queryCardB])
-    expect(prompts).toHaveLength(2)
-  })
-})
-
 describe('orderHandForResolution', () => {
   it('puts table instructions before bot-state effects, preserving order within each group', () => {
     const hand = [
@@ -104,7 +91,7 @@ describe('resolveSingleCard', () => {
   it('applies a CreateCreature effect to the battlefield without touching hand/library', () => {
     const bot = makeBot()
     const ref = { instanceId: 'i-c1', deckCardId: 'c1' }
-    const result = resolveSingleCard(bot, ref, creatureCard, {})
+    const result = resolveSingleCard(bot, ref, creatureCard)
     expect(result.bot.battlefield).toHaveLength(1)
     expect(result.bot.battlefield[0]).toMatchObject({ name: 'Hill Giant', power: 3, toughness: 3 })
     expect(result.bot.graveyard).toEqual([]) // creatures stay on the battlefield, not the graveyard
@@ -115,7 +102,7 @@ describe('resolveSingleCard', () => {
   it('sends a resolved non-creature card to the graveyard', () => {
     const bot = makeBot()
     const ref = { instanceId: 'i-g1', deckCardId: 'g1' }
-    const result = resolveSingleCard(bot, ref, gainLifeCard, {})
+    const result = resolveSingleCard(bot, ref, gainLifeCard)
     expect(result.bot.life).toBe(25)
     expect(result.bot.graveyard).toEqual([ref])
   })
@@ -124,10 +111,25 @@ describe('resolveSingleCard', () => {
     const drawExtraCard: DeckCardConfig = { id: 'd1', scryfallName: 'Divination', effect: { kind: 'DrawExtraBot', amount: 2 } }
     const bot = makeBot()
     const ref = { instanceId: 'i-d1', deckCardId: 'd1' }
-    const result = resolveSingleCard(bot, ref, drawExtraCard, {})
+    const result = resolveSingleCard(bot, ref, drawExtraCard)
     expect(result.extraDraws).toBe(2)
     expect(result.bot.library).toBe(bot.library) // untouched — caller draws later, at end of turn
     expect(result.bot.graveyard).toEqual([ref])
+  })
+
+  it('applies a CreatePermanent effect to bot.permanents without touching the graveyard (it stays in play)', () => {
+    const permanentCard: DeckCardConfig = {
+      id: 'p1',
+      scryfallName: 'Glorious Anthem',
+      effect: { kind: 'CreatePermanent', permanentType: 'enchantment', powerBonus: 1, toughnessBonus: 1, grantKeywords: [] },
+    }
+    const bot = makeBot()
+    const ref = { instanceId: 'i-p1', deckCardId: 'p1' }
+    const result = resolveSingleCard(bot, ref, permanentCard)
+    expect(result.bot.permanents).toHaveLength(1)
+    expect(result.bot.permanents[0]).toMatchObject({ name: 'Glorious Anthem', permanentType: 'enchantment', powerBonus: 1, toughnessBonus: 1 })
+    expect(result.bot.graveyard).toEqual([])
+    expect(result.logLine.text).toContain('Glorious Anthem')
   })
 
   it('an errata on the card replaces the template-generated instruction text', () => {
@@ -139,7 +141,7 @@ describe('resolveSingleCard', () => {
     }
     const bot = makeBot()
     const ref = { instanceId: 'i-e1', deckCardId: 'e1' }
-    const result = resolveSingleCard(bot, ref, erratedCard, {})
+    const result = resolveSingleCard(bot, ref, erratedCard)
     expect(result.logLine.text).toBe('The bot casts Extinction Event: Choose who to hit based on the board..')
     expect(result.logLine.text).not.toContain('Destroy all creatures')
   })
@@ -170,6 +172,24 @@ describe('declareAttackers', () => {
     const result = declareAttackers([])
     expect(result.attackers).toEqual([])
     expect(result.logLine.text).toBe('The bot has no creatures ready to attack this turn.')
+  })
+
+  it('a haste-granting permanent lets an otherwise-sick creature attack, with effective stats baked into the result', () => {
+    const sick: BattlefieldCreature = { instanceId: 's', name: 'Sick', isToken: false, power: 2, toughness: 2, keywords: [], summoningSick: true }
+    const anthem: BotPermanent = { instanceId: 'p1', name: 'Concordant Crossroads', permanentType: 'enchantment', powerBonus: 1, toughnessBonus: 1, grantKeywords: ['haste'], sourceDeckCardId: 'p1' }
+    const result = declareAttackers([sick], [anthem])
+    expect(result.attackers).toHaveLength(1)
+    expect(result.attackers[0]).toMatchObject({ power: 3, toughness: 3, keywords: ['haste'] })
+    expect(result.logLine.text).toContain('total power 3')
+  })
+
+  it('a plain +1/+1 permanent (no haste) does not let a sick creature attack, but does buff the ready ones', () => {
+    const ready: BattlefieldCreature = { instanceId: 'r', name: 'Ready', isToken: false, power: 2, toughness: 2, keywords: [], summoningSick: false }
+    const sick: BattlefieldCreature = { instanceId: 's', name: 'Sick', isToken: false, power: 2, toughness: 2, keywords: [], summoningSick: true }
+    const anthem: BotPermanent = { instanceId: 'p1', name: 'Glorious Anthem', permanentType: 'enchantment', powerBonus: 1, toughnessBonus: 1, grantKeywords: [], sourceDeckCardId: 'p1' }
+    const result = declareAttackers([ready, sick], [anthem])
+    expect(result.attackers.map((c) => c.instanceId)).toEqual(['r'])
+    expect(result.attackers[0]).toMatchObject({ power: 3, toughness: 3 })
   })
 })
 

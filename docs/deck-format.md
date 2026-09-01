@@ -28,6 +28,8 @@ Each card is a `DeckCardConfig`:
     colors: string[]
   }
   effect: EffectParams  // see below — determines what the card does when the bot plays it
+  impact?: number        // 1 (low) / 2 (medium) / 3 (high) — draw-weighting, see game-design.md. Missing -> 1
+  category?: CardCategory // optional — official tactical category, see "Card category" below. Missing -> uncategorized
   errata?: string        // optional — see "Errata / custom rules" below
 }
 ```
@@ -36,13 +38,7 @@ If you write a deck by hand, you can omit `scryfall` — the app fetches it on i
 
 ## `EffectParams`
 
-The `kind` field selects the template (see [game-design.md](game-design.md) for the semantics of each). Every numeric parameter (`count`, `power`, `amount`, ...) accepts a `NumericValue`: **either** a fixed number, **or** a question object:
-
-```ts
-type NumericValue =
-  | number
-  | { query: string; multiplier: number; offset: number; min?: number; max?: number }
-```
+The `kind` field selects the template (see [game-design.md](game-design.md) for the semantics of each). Every numeric parameter (`count`, `power`, `amount`, ...) is a plain fixed number, decided by whoever curates the deck — not resolved at play time. A real card whose printed effect has a variable X (e.g. *Toxic Deluge*'s "-X/-X to all creatures") is represented as several deck entries, one per fixed X, spread across `impact` tiers (low/medium/high — see `DeckCardConfig.impact` in [`types.ts`](../src/types.ts)) — see *Toxic Deluge* in [`zombieDeck.ts`](../src/data/zombieDeck.ts)/[`dinosaurDeck.ts`](../src/data/dinosaurDeck.ts) for a real example.
 
 ### `CreateCreature`
 
@@ -53,11 +49,13 @@ type NumericValue =
   "power": 5,
   "toughness": 5,
   "keywords": ["flying", "trample"],
-  "tokenName": "Dragon"
+  "tokenName": "Dragon",
+  "tokenTypeLine": "Dragon",
+  "tokenColors": ["R"]
 }
 ```
 
-`keywords` is a subset of: `flying, trample, deathtouch, lifelink, firststrike, doublestrike, menace, vigilance, reach, haste`. `tokenName` is optional, used only when `count` resolves to more than 1 (otherwise the creature is the card itself).
+`keywords` is a subset of: `flying, trample, deathtouch, lifelink, firststrike, doublestrike, menace, vigilance, reach, haste`. `tokenName`, `tokenTypeLine` and `tokenColors` are all optional, used only when `count` is more than 1 (otherwise the creature is the card itself, already showing its own type/colors on its Scryfall image). `tokenColors` is a subset of `W, U, B, R, G` — omit or leave empty for a colorless token. Both are purely informational: the engine never reads them (see [game-design.md](game-design.md#tokens-type-and-colors)), they just give the table something to check against their own buffs or removal when a token has no card image to look at.
 
 ### `PumpBotBoard`
 
@@ -69,6 +67,20 @@ type NumericValue =
   "grantKeywords": ["trample"]
 }
 ```
+
+### `CreatePermanent`
+
+```json
+{
+  "kind": "CreatePermanent",
+  "permanentType": "enchantment",
+  "powerBonus": 1,
+  "toughnessBonus": 1,
+  "grantKeywords": ["vigilance"]
+}
+```
+
+`permanentType`: `artifact | enchantment` — purely a display label (the "Artifact"/"Enchantment" badge shown on the card in `BotPanel`'s "Bot permanents" section), the engine treats both identically. Puts a standalone permanent into play (`BotState.permanents`) instead of touching any creature's stats directly: it buffs every bot creature — including ones summoned *after* it resolves — for as long as it stays in play, and stops the moment it's destroyed/exiled like any other card. See [game-design.md](game-design.md#pumpbotboard-vs-createpermanent-two-different-anthem-trade-offs) for how this differs from `PumpBotBoard`.
 
 ### `GainLifeBot`
 
@@ -119,22 +131,26 @@ type NumericValue =
 
 `perPlayer: true` → "each player ×N"; `perPlayer: false` → "players jointly choose N in total".
 
-## "Query" values
+## Card category
 
-Instead of a fixed number, a parameter can scale based on a question asked to the operator during turn resolution:
+`category` is the card's official tactical role — orthogonal to `effect.kind` (how the engine resolves it): the same `kind` can serve different roles (`PumpBotBoard` covers both a permanent `lord` and a one-shot `teamPump`), and it's assigned by hand, not derived. It's `CardCategory`, a string:
 
-```json
-{
-  "power": {
-    "query": "How many artifacts and enchantments do the players control?",
-    "multiplier": 1,
-    "offset": 4,
-    "min": 4
-  }
-}
-```
+| Value | Meaning |
+|---|---|
+| `horde` | 2+ creatures/tokens from one card, few or no keywords — a swarm play |
+| `bigBad` | a single creature with at least one keyword — a named threat |
+| `grunt` | a single creature with no keyword — plain filler body |
+| `specificRemoval` | each player loses/sacrifices one creature of their own (edict, or an objective criterion like highest power) |
+| `aoe` | damage or "-X/-X" to all of the players' creatures — doesn't guarantee a full wipe |
+| `boardClear` | unconditionally destroys/exiles all of the players' creatures |
+| `lord` | permanent team-wide buff to the bot's board (anthem) |
+| `teamPump` | one-shot team-wide buff (a combat trick, not a permanent anthem) |
+| `draw` | the bot draws extra cards |
+| `lifeGain` | the bot gains life |
+| `faceDamage` | damage/life loss straight to the players, bypassing creatures |
+| `discard` | forces the players to discard |
 
-Calculation: `result = operator_answer × multiplier + offset`, then clamped to `[min, max]` if present (both optional). If several fields on the same card use **identical text** in `query`, the app asks the question only once and reuses the answer for all of them.
+Omit it (or leave it `undefined`) for an uncategorized card — the deck builder shows it as "— Uncategorized —". See [`src/data/zombieDeck.ts`](../src/data/zombieDeck.ts)/[`dinosaurDeck.ts`](../src/data/dinosaurDeck.ts) for every category assigned across a full deck.
 
 ## Errata / custom rules
 
@@ -156,9 +172,9 @@ It's meant for the few cases where the real card has a resolution that depends o
 
 `mode`/`count`/`destroyOrExile` stay populated for schema validity but are ignored in favor of the `errata` text when it's present.
 
-Don't confuse this with [query values](#query-values): if the card only needs a **number** the operator can estimate by looking at the table (e.g. *Toxic Deluge*, "-X/-X to all creatures" with X chosen), a `NumericValue` with `query` is enough — no `errata` needed. `errata` is for **modal** choices (between qualitatively different options), not for scalar values.
+`errata` is for **modal** choices (between qualitatively different options) that no template mode can express — not for a card whose only variable is a **number** (e.g. *Toxic Deluge*'s X): those are curated as several fixed-number copies instead (see the note on `EffectParams` above), no `errata` needed.
 
-See [`src/data/zombieDeck.ts`](../src/data/zombieDeck.ts) and [`src/data/dinosaurDeck.ts`](../src/data/dinosaurDeck.ts) for both examples in a real deck.
+See [`src/data/zombieDeck.ts`](../src/data/zombieDeck.ts) and [`src/data/dinosaurDeck.ts`](../src/data/dinosaurDeck.ts) for a real example.
 
 ## Full example
 
@@ -170,23 +186,19 @@ A mini deck with one template per family:
     {
       "id": "d1",
       "scryfallName": "Colossal Dreadmaw",
+      "category": "bigBad",
       "effect": { "kind": "CreateCreature", "count": 1, "power": 6, "toughness": 6, "keywords": ["trample"] }
     },
     {
       "id": "d2",
       "scryfallName": "Wrath of God",
+      "category": "boardClear",
       "effect": { "kind": "RemovalInstruction", "mode": "all", "count": 1, "destroyOrExile": "destroy" }
     },
     {
       "id": "d3",
       "scryfallName": "Bane of Progress",
-      "effect": {
-        "kind": "CreateCreature",
-        "count": 1,
-        "power": { "query": "How many artifacts and enchantments do the players control?", "multiplier": 1, "offset": 4, "min": 4 },
-        "toughness": { "query": "How many artifacts and enchantments do the players control?", "multiplier": 1, "offset": 4, "min": 4 },
-        "keywords": []
-      }
+      "effect": { "kind": "CreateCreature", "count": 1, "power": 5, "toughness": 5, "keywords": [] }
     }
   ]
 }

@@ -35,7 +35,7 @@ export function CurrentCardReveal() {
 
   // Pure preview of what "Resolve" would apply — recomputed identically inside the reducer on
   // confirm, from the same (unchanged, since we're blocking on this choice) game state.
-  const preview = resolveSingleCard(game.bot, ref, card, game.pendingTurn.queryAnswers)
+  const preview = resolveSingleCard(game.bot, ref, card)
   const prefix = `The bot casts ${card.scryfallName}: `
   const effectText = preview.logLine.text.startsWith(prefix) ? preview.logLine.text.slice(prefix.length) : preview.logLine.text
   const remaining = game.bot.hand.length - 1

@@ -3,6 +3,7 @@ import type { EffectParams, EffectTemplateId } from '../types'
 export const TEMPLATE_LABELS: Record<EffectTemplateId, string> = {
   CreateCreature: 'Summon creature/token',
   PumpBotBoard: 'Buff the bot board',
+  CreatePermanent: 'Artifact/enchantment (persistent anthem)',
   GainLifeBot: 'The bot gains life',
   DrawExtraBot: 'The bot draws extra cards',
   RemovalInstruction: 'Removal (table instruction)',
@@ -17,6 +18,8 @@ export function defaultEffectFor(kind: EffectTemplateId): EffectParams {
       return { kind, count: 1, power: 1, toughness: 1, keywords: [] }
     case 'PumpBotBoard':
       return { kind, powerBonus: 1, toughnessBonus: 1, grantKeywords: [] }
+    case 'CreatePermanent':
+      return { kind, permanentType: 'enchantment', powerBonus: 1, toughnessBonus: 1, grantKeywords: [] }
     case 'GainLifeBot':
       return { kind, amount: 3 }
     case 'DrawExtraBot':

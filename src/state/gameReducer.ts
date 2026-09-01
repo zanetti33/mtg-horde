@@ -1,5 +1,23 @@
 import { CUSTOM_DECK_SOURCE } from '../types'
-import type { BattlefieldCreature, BotState, CardDestination, CardRef, DeckCardConfig, DeckSource, EffectParams, GameConfig, GameState, LibraryPosition, ScryfallCardData, TurnLogEntry, Zone } from '../types'
+import type {
+  BattlefieldCreature,
+  BotPermanent,
+  BotState,
+  CardCategory,
+  CardDestination,
+  CardRef,
+  Color,
+  DeckCardConfig,
+  DeckSource,
+  EffectParams,
+  GameConfig,
+  GameState,
+  Keyword,
+  LibraryPosition,
+  ScryfallCardData,
+  TurnLogEntry,
+  Zone,
+} from '../types'
 import {
   counterSingleCard,
   declareAttackers,
@@ -10,7 +28,7 @@ import {
   recomputeStatus,
   resolveSingleCard,
 } from '../engine/botTurnEngine'
-import { buildBattlefieldCreatureFromCard } from '../engine/templates'
+import { buildBattlefieldCreatureFromCard, buildPermanentFromCard } from '../engine/templates'
 import { computeBaseDrawCount, computeStartingBotLife, computeSuggestedPlayersLife, computeTargetLibrarySize } from '../engine/difficulty'
 
 /** Inserts `ref` into `library` at the given position. `nth` is 1-indexed from the top and clamped to the array bounds. */
@@ -42,14 +60,16 @@ export type AppAction =
   | { type: 'UPDATE_DECK_CARD_EFFECT'; id: string; effect: EffectParams }
   | { type: 'UPDATE_DECK_CARD_ERRATA'; id: string; errata: string | undefined }
   | { type: 'UPDATE_DECK_CARD_IMPACT'; id: string; impact: number }
+  | { type: 'UPDATE_DECK_CARD_CATEGORY'; id: string; category: CardCategory | undefined }
   | { type: 'UPDATE_DECK_CARD_SCRYFALL'; id: string; scryfall: ScryfallCardData }
   | { type: 'START_GAME'; config: GameConfig }
-  | { type: 'BEGIN_BOT_TURN'; queryAnswers: Record<string, number> }
+  | { type: 'BEGIN_BOT_TURN' }
   | { type: 'RESOLVE_TURN_CARD'; countered: boolean }
   | { type: 'CONFIRM_ATTACK_OUTCOME'; survivingInstanceIds: string[] }
   | { type: 'SET_BOT_LIFE'; life: number }
   | { type: 'SET_PLAYERS_LIFE'; life: number }
   | { type: 'MOVE_CARD'; instanceId: string; origin: Zone; destination: CardDestination }
+  | { type: 'ADD_CUSTOM_TOKEN'; name: string; power: number; toughness: number; keywords: Keyword[]; typeLine?: string; colors?: Color[] }
   | { type: 'RESET_GAME' }
   | { type: 'LOAD_STATE'; deck: DeckCardConfig[]; deckSource: DeckSource; game: GameState | null }
 
@@ -67,7 +87,11 @@ function newInstanceId(): string {
 }
 
 /** Removes a card by instance id from whichever zone array it's tracked in. */
-function removeFromZone(bot: BotState, origin: Zone, instanceId: string): { bot: BotState; ref?: CardRef; creature?: BattlefieldCreature } {
+function removeFromZone(
+  bot: BotState,
+  origin: Zone,
+  instanceId: string,
+): { bot: BotState; ref?: CardRef; creature?: BattlefieldCreature; permanent?: BotPermanent } {
   switch (origin) {
     case 'library':
       return { bot: { ...bot, library: bot.library.filter((r) => r.instanceId !== instanceId) }, ref: bot.library.find((r) => r.instanceId === instanceId) }
@@ -82,6 +106,11 @@ function removeFromZone(bot: BotState, origin: Zone, instanceId: string): { bot:
         bot: { ...bot, battlefield: bot.battlefield.filter((c) => c.instanceId !== instanceId) },
         creature: bot.battlefield.find((c) => c.instanceId === instanceId),
       }
+    case 'permanents':
+      return {
+        bot: { ...bot, permanents: bot.permanents.filter((p) => p.instanceId !== instanceId) },
+        permanent: bot.permanents.find((p) => p.instanceId === instanceId),
+      }
   }
 }
 
@@ -92,15 +121,15 @@ function removeFromZone(bot: BotState, origin: Zone, instanceId: string): { bot:
  * fixing a mistake, ...), not just creatures leaving the battlefield.
  */
 function moveCard(bot: BotState, deckSnapshot: DeckCardConfig[], instanceId: string, origin: Zone, destination: CardDestination): BotState {
-  const { bot: next, ref, creature } = removeFromZone(bot, origin, instanceId)
+  const { bot: next, ref, creature, permanent } = removeFromZone(bot, origin, instanceId)
   // Instance not actually in the stated origin zone — no-op rather than acting on nothing.
-  if (!ref && !creature) return bot
+  if (!ref && !creature && !permanent) return bot
 
   // Tokens cease to exist the moment they'd change zones, per Magic's rules, whatever destination was picked.
   if (creature?.isToken) return next
 
   if (destination.zone === 'battlefield') {
-    const deckCardId = ref?.deckCardId ?? creature?.sourceDeckCardId
+    const deckCardId = ref?.deckCardId ?? creature?.sourceDeckCardId ?? permanent?.sourceDeckCardId
     const card = deckCardId ? deckSnapshot.find((c) => c.id === deckCardId) : undefined
     const newCreature = card ? buildBattlefieldCreatureFromCard(card, instanceId) : null
     // No creature-effect card behind this instance — nothing sensible to put into play. Leave the
@@ -109,7 +138,19 @@ function moveCard(bot: BotState, deckSnapshot: DeckCardConfig[], instanceId: str
     return { ...next, battlefield: [...next.battlefield, newCreature] }
   }
 
-  const newRef: CardRef | undefined = ref ?? (creature?.sourceDeckCardId ? { instanceId, deckCardId: creature.sourceDeckCardId } : undefined)
+  if (destination.zone === 'permanents') {
+    const deckCardId = ref?.deckCardId ?? creature?.sourceDeckCardId ?? permanent?.sourceDeckCardId
+    const card = deckCardId ? deckSnapshot.find((c) => c.id === deckCardId) : undefined
+    const newPermanent = card ? buildPermanentFromCard(card, instanceId) : null
+    // No CreatePermanent-effect card behind this instance — same reasoning as the battlefield case above.
+    if (!newPermanent) return bot
+    return { ...next, permanents: [...next.permanents, newPermanent] }
+  }
+
+  const newRef: CardRef | undefined =
+    ref ??
+    (creature?.sourceDeckCardId ? { instanceId, deckCardId: creature.sourceDeckCardId } : undefined) ??
+    (permanent?.sourceDeckCardId ? { instanceId, deckCardId: permanent.sourceDeckCardId } : undefined)
   if (!newRef) return next
 
   switch (destination.zone) {
@@ -150,7 +191,7 @@ function startGame(deck: DeckCardConfig[], config: GameConfig): GameState {
   // the bot's opening hand needs to already be sitting there for them to interact with.
   const openingDrawCount = computeBaseDrawCount(1, config.playerCount, config.difficulty)
   const startingLife = computeStartingBotLife(config.playerCount)
-  const bot: BotState = drawForTurn({ life: startingLife, library, hand: [], battlefield: [], graveyard: [], exile: [] }, openingDrawCount, {
+  const bot: BotState = drawForTurn({ life: startingLife, library, hand: [], battlefield: [], permanents: [], graveyard: [], exile: [] }, openingDrawCount, {
     deckSnapshot: deck,
     turnNumber: 1,
     playerCount: config.playerCount,
@@ -175,7 +216,7 @@ function startGame(deck: DeckCardConfig[], config: GameConfig): GameState {
 function finalizeBotTurn(game: GameState, bot: BotState, turnLogSoFar: TurnLogEntry[], extraDraws: number): GameState {
   const nextTurnNumber = game.turnNumber + 1
   const baseDrawCount = computeBaseDrawCount(nextTurnNumber, game.config.playerCount, game.config.difficulty)
-  const { attackers, logLine: attackLogLine } = declareAttackers(bot.battlefield)
+  const { attackers, logLine: attackLogLine } = declareAttackers(bot.battlefield, bot.permanents)
   const { hand, library, logLine: drawLogLine } = drawNextTurnHand(bot.library, baseDrawCount, extraDraws, {
     deckSnapshot: game.deckSnapshot,
     turnNumber: nextTurnNumber,
@@ -221,6 +262,9 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     case 'UPDATE_DECK_CARD_IMPACT':
       return { ...state, deck: state.deck.map((c) => (c.id === action.id ? { ...c, impact: action.impact } : c)) }
 
+    case 'UPDATE_DECK_CARD_CATEGORY':
+      return { ...state, deck: state.deck.map((c) => (c.id === action.id ? { ...c, category: action.category } : c)) }
+
     case 'UPDATE_DECK_CARD_SCRYFALL':
       return { ...state, deck: state.deck.map((c) => (c.id === action.id ? { ...c, scryfall: action.scryfall } : c)) }
 
@@ -240,7 +284,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 
       return {
         ...state,
-        game: { ...state.game, bot, turnLog: [], phase: 'resolvingTurn', pendingTurn: { queryAnswers: action.queryAnswers, extraDraws: 0 } },
+        game: { ...state.game, bot, turnLog: [], phase: 'resolvingTurn', pendingTurn: { extraDraws: 0 } },
       }
     }
 
@@ -252,7 +296,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 
       const result = action.countered
         ? counterSingleCard(state.game.bot, ref, card)
-        : resolveSingleCard(state.game.bot, ref, card, state.game.pendingTurn.queryAnswers)
+        : resolveSingleCard(state.game.bot, ref, card)
 
       const bot: BotState = { ...result.bot, hand: restHand }
       const turnLog = [...state.game.turnLog, result.logLine]
@@ -304,6 +348,27 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       if (!state.game) return state
       const bot = moveCard(state.game.bot, state.game.deckSnapshot, action.instanceId, action.origin, action.destination)
       return { ...state, game: { ...state.game, bot, status: recomputeStatus(bot) } }
+    }
+
+    case 'ADD_CUSTOM_TOKEN': {
+      if (!state.game) return state
+      // Represents a real card the players cast that gives the bot a token (e.g. "create a 1/1
+      // Fish for an opponent") — not backed by any DeckCardConfig, so there's no sourceDeckCardId
+      // and, per Magic's rules for tokens, it simply ceases to exist whenever it would leave the
+      // battlefield (see moveCard above).
+      const creature: BattlefieldCreature = {
+        instanceId: newInstanceId(),
+        name: action.name,
+        isToken: true,
+        power: action.power,
+        toughness: action.toughness,
+        keywords: action.keywords,
+        summoningSick: !action.keywords.includes('haste'),
+        typeLine: action.typeLine,
+        colors: action.colors,
+      }
+      const bot = { ...state.game.bot, battlefield: [...state.game.bot.battlefield, creature] }
+      return { ...state, game: { ...state.game, bot } }
     }
 
     case 'RESET_GAME':

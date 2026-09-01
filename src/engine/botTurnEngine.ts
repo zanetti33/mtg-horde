@@ -1,7 +1,5 @@
-import type { BattlefieldCreature, BotState, CardRef, DeckCardConfig, Difficulty, GameStatus, TurnLogEntry } from '../types'
-import { collectQueriesForCard, applyCreateCreature, applyPumpBotBoard, applyGainLifeBot, applyDrawExtraBot } from './templates'
-import type { QueryPrompt } from './templates'
-export type { QueryPrompt } from './templates'
+import type { BattlefieldCreature, BotPermanent, BotState, CardRef, DeckCardConfig, Difficulty, GameStatus, TurnLogEntry } from '../types'
+import { applyCreateCreature, applyPumpBotBoard, applyCreatePermanent, applyGainLifeBot, applyDrawExtraBot, getEffectiveStats } from './templates'
 import { describeRemoval, describeDamage, describeSacrifice, describeDiscard } from './instructionText'
 import { computeCardWeight } from './difficulty'
 
@@ -68,21 +66,6 @@ export function drawForTurn(bot: BotState, count: number, context: DrawWeightCon
   }
 }
 
-/** Collects every query needed to resolve the current hand, so the operator can answer them all up front. */
-export function getPendingQueries(hand: CardRef[], deckSnapshot: DeckCardConfig[]): QueryPrompt[] {
-  const seen = new Set<string>()
-  const prompts: QueryPrompt[] = []
-  for (const ref of hand) {
-    const card = findDeckCard(deckSnapshot, ref.deckCardId)
-    for (const prompt of collectQueriesForCard(card)) {
-      if (seen.has(prompt.key)) continue
-      seen.add(prompt.key)
-      prompts.push(prompt)
-    }
-  }
-  return prompts
-}
-
 export function recomputeStatus(bot: BotState): GameStatus {
   if (bot.life <= 0) return 'botDefeated'
   if (bot.library.length === 0) return 'botDefeated'
@@ -129,8 +112,9 @@ export interface CardResolutionResult {
  * the caller advances the hand, and once the whole queue is empty, draws
  * the next turn's hand (see `drawNextTurnHand`).
  */
-export function resolveSingleCard(bot: BotState, ref: CardRef, card: DeckCardConfig, queryAnswers: Record<string, number>): CardResolutionResult {
+export function resolveSingleCard(bot: BotState, ref: CardRef, card: DeckCardConfig): CardResolutionResult {
   let battlefield = bot.battlefield
+  let permanents = bot.permanents
   let life = bot.life
   const graveyard = [...bot.graveyard]
   let extraDraws = 0
@@ -139,46 +123,52 @@ export function resolveSingleCard(bot: BotState, ref: CardRef, card: DeckCardCon
   const effect = card.effect
   switch (effect.kind) {
     case 'CreateCreature': {
-      const result = applyCreateCreature(card, effect, queryAnswers)
+      const result = applyCreateCreature(card, effect)
       battlefield = [...battlefield, ...result.creatures]
       description = result.description
       break
     }
     case 'PumpBotBoard': {
-      const result = applyPumpBotBoard(card, effect, queryAnswers, battlefield)
+      const result = applyPumpBotBoard(effect, battlefield)
       battlefield = result.battlefield
       description = result.description
       graveyard.push(ref)
       break
     }
+    case 'CreatePermanent': {
+      const result = applyCreatePermanent(card, effect)
+      permanents = [...permanents, result.permanent]
+      description = result.description
+      break
+    }
     case 'GainLifeBot': {
-      const result = applyGainLifeBot(card, effect, queryAnswers)
+      const result = applyGainLifeBot(effect)
       life += result.amount
       description = result.description
       graveyard.push(ref)
       break
     }
     case 'DrawExtraBot': {
-      const result = applyDrawExtraBot(card, effect, queryAnswers)
+      const result = applyDrawExtraBot(effect)
       extraDraws = result.amount
       description = result.description
       graveyard.push(ref)
       break
     }
     case 'RemovalInstruction':
-      description = describeRemoval(card, effect, queryAnswers)
+      description = describeRemoval(effect)
       graveyard.push(ref)
       break
     case 'DamageInstruction':
-      description = describeDamage(card, effect, queryAnswers)
+      description = describeDamage(effect)
       graveyard.push(ref)
       break
     case 'SacrificeInstruction':
-      description = describeSacrifice(card, effect, queryAnswers)
+      description = describeSacrifice(effect)
       graveyard.push(ref)
       break
     case 'DiscardInstruction':
-      description = describeDiscard(card, effect, queryAnswers)
+      description = describeDiscard(effect)
       graveyard.push(ref)
       break
   }
@@ -188,7 +178,7 @@ export function resolveSingleCard(bot: BotState, ref: CardRef, card: DeckCardCon
   // the correct table-resolution rule on its own (see types.ts).
   const finalDescription = card.errata ?? description
   return {
-    bot: { ...bot, battlefield, life, graveyard },
+    bot: { ...bot, battlefield, permanents, life, graveyard },
     logLine: { text: `The bot casts ${card.scryfallName}: ${finalDescription}.`, imageUrl: card.scryfall?.imageUrl },
     extraDraws,
   }
@@ -213,9 +203,21 @@ export interface DeclareAttackersResult {
   logLine: TurnLogEntry
 }
 
-/** Declares attackers once the turn's whole card queue has been resolved: every battlefield creature without summoning sickness. */
-export function declareAttackers(battlefield: BattlefieldCreature[]): DeclareAttackersResult {
-  const attackers = battlefield.filter((c) => !c.summoningSick)
+/**
+ * Declares attackers once the turn's whole card queue has been resolved: every battlefield
+ * creature without summoning sickness, or with it but under a permanent that grants haste to the
+ * whole board (see `getEffectiveStats`) — exactly like a real haste anthem lets a creature that
+ * just entered play attack anyway. The returned creatures carry their *effective* power/toughness/
+ * keywords (base + active permanents) baked in, since this is purely a display snapshot for
+ * `AttackOutcome`/the turn log — `bot.battlefield` itself keeps each creature's real base stats.
+ */
+export function declareAttackers(battlefield: BattlefieldCreature[], permanents: BotPermanent[] = []): DeclareAttackersResult {
+  const attackers = battlefield
+    .filter((c) => {
+      const { keywords } = getEffectiveStats(c, permanents)
+      return !c.summoningSick || keywords.includes('haste')
+    })
+    .map((c) => ({ ...c, ...getEffectiveStats(c, permanents) }))
   const attackPower = attackers.reduce((sum, c) => sum + c.power, 0)
   const logLine: TurnLogEntry =
     attackers.length > 0

@@ -7,7 +7,8 @@ import { EffectForm } from './EffectForm'
 import { CardThumbnail } from './CardThumbnail'
 import { downloadJSON, readJSONFile } from '../state/persistence'
 import { hydrateMissingScryfallData } from '../scryfall/hydrate'
-import { CUSTOM_DECK_SOURCE, type DeckCardConfig, type DeckConfig } from '../types'
+import { DECK_PRESETS } from '../data/presets'
+import { ALL_CARD_CATEGORIES, CARD_CATEGORY_LABELS, CUSTOM_DECK_SOURCE, type CardCategory, type DeckCardConfig, type DeckConfig } from '../types'
 
 const IMPACT_OPTIONS: { value: number; label: string }[] = [
   { value: 1, label: '1 — Low' },
@@ -34,6 +35,28 @@ function ImpactSelect({ value, onChange }: { value: number; onChange: (impact: n
   )
 }
 
+const UNCATEGORIZED = '' // <option> can't carry `undefined`, so the empty string stands for "no category"
+
+function CategorySelect({ value, onChange }: { value: CardCategory | undefined; onChange: (category: CardCategory | undefined) => void }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs font-medium text-slate-300">Category</span>
+      <select
+        value={value ?? UNCATEGORIZED}
+        onChange={(e) => onChange(e.target.value === UNCATEGORIZED ? undefined : (e.target.value as CardCategory))}
+        className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100"
+      >
+        <option value={UNCATEGORIZED}>— Uncategorized —</option>
+        {ALL_CARD_CATEGORIES.map((cat) => (
+          <option key={cat} value={cat}>
+            {CARD_CATEGORY_LABELS[cat]}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
 function AddCardForm() {
   const { dispatch } = useAppState()
   const [query, setQuery] = useState('')
@@ -42,6 +65,7 @@ function AddCardForm() {
   const [chosenName, setChosenName] = useState<string | null>(null)
   const [effect, setEffect] = useState(() => defaultEffectFor('CreateCreature'))
   const [impact, setImpact] = useState(1)
+  const [category, setCategory] = useState<CardCategory | undefined>(undefined)
   const [adding, setAdding] = useState(false)
   const debounceRef = useRef<number | undefined>(undefined)
 
@@ -66,6 +90,7 @@ function AddCardForm() {
     setChosenName(null)
     setEffect(defaultEffectFor('CreateCreature'))
     setImpact(1)
+    setCategory(undefined)
   }
 
   function chooseSuggestion(name: string) {
@@ -111,7 +136,7 @@ function AddCardForm() {
     // the fact would need the deck-wide effect this app deliberately avoids
     // (see AppContext.tsx for why that caused a request storm).
     const scryfall = (await getCardByName(name)) ?? undefined
-    const card: DeckCardConfig = { id: crypto.randomUUID(), scryfallName: scryfall?.name ?? name, effect, impact, scryfall }
+    const card: DeckCardConfig = { id: crypto.randomUUID(), scryfallName: scryfall?.name ?? name, effect, impact, category, scryfall }
     dispatch({ type: 'ADD_DECK_CARD', card })
     setAdding(false)
     reset()
@@ -154,8 +179,9 @@ function AddCardForm() {
 
       <EffectForm effect={effect} onChange={setEffect} />
 
-      <div className="mt-3">
+      <div className="mt-3 grid grid-cols-2 gap-2">
         <ImpactSelect value={impact} onChange={setImpact} />
+        <CategorySelect value={category} onChange={setCategory} />
       </div>
 
       <p className="mt-2 text-xs text-slate-500">Preview: {summarizeEffect(effect)}</p>
@@ -184,6 +210,7 @@ function DeckCardRow({ card, locked }: { card: DeckCardConfig; locked: boolean }
             <p className="font-medium text-slate-100">{card.scryfallName}</p>
             <p className="text-xs text-slate-400">
               {summarizeEffect(card.effect)} · Impact {card.impact ?? 1}
+              {card.category && ` · ${CARD_CATEGORY_LABELS[card.category]}`}
             </p>
             {card.errata && <p className="mt-1 text-xs text-amber-400">Errata: {card.errata}</p>}
             {!card.scryfall && <p className="mt-1 text-xs text-amber-400">Scryfall data not loaded yet (image, cost) — retry with "Refresh cards with no data" below.</p>}
@@ -204,7 +231,10 @@ function DeckCardRow({ card, locked }: { card: DeckCardConfig; locked: boolean }
       {!locked && editing && (
         <div className="mt-3 space-y-3 border-t border-slate-800 pt-3">
           <EffectForm effect={card.effect} onChange={(effect) => dispatch({ type: 'UPDATE_DECK_CARD_EFFECT', id: card.id, effect })} />
-          <ImpactSelect value={card.impact ?? 1} onChange={(impact) => dispatch({ type: 'UPDATE_DECK_CARD_IMPACT', id: card.id, impact })} />
+          <div className="grid grid-cols-2 gap-2">
+            <ImpactSelect value={card.impact ?? 1} onChange={(impact) => dispatch({ type: 'UPDATE_DECK_CARD_IMPACT', id: card.id, impact })} />
+            <CategorySelect value={card.category} onChange={(category) => dispatch({ type: 'UPDATE_DECK_CARD_CATEGORY', id: card.id, category })} />
+          </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-300">Errata / custom rule (optional)</label>
             <textarea
@@ -227,6 +257,7 @@ export function DeckBuilder() {
   const [refreshing, setRefreshing] = useState(false)
   const missingScryfall = state.deck.filter((c) => !c.scryfall)
   const locked = state.deckSource !== CUSTOM_DECK_SOURCE
+  const activePreset = DECK_PRESETS.find((p) => p.label === state.deckSource)
 
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -278,6 +309,7 @@ export function DeckBuilder() {
               This is the fixed <strong>{state.deckSource}</strong> preset — cards are read-only, so it stays exactly as designed. To tweak it (add,
               remove, or re-tune cards), switch to Custom: it starts as an editable copy of what's shown here.
             </p>
+            {activePreset && <p className="mt-2 text-sky-300/80">{activePreset.description}</p>}
             <button
               onClick={() => dispatch({ type: 'UNLOCK_CUSTOM_DECK' })}
               className="mt-2 rounded border border-sky-700 px-2 py-1 text-xs text-sky-200 hover:bg-sky-900"

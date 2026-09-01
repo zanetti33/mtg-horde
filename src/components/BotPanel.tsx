@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { useAppState } from '../state/AppContext'
-import { summarizeEffect } from '../engine/effectSummary'
+import { summarizeEffect, summarizePermanent } from '../engine/effectSummary'
+import { getEffectiveStats } from '../engine/templates'
 import { KEYWORD_LABELS } from '../types'
 import type { CardDestination, CardRef, DeckCardConfig, Zone } from '../types'
 import { CardContextMenu, type ContextMenuOption } from './CardContextMenu'
 import { CardThumbnail } from './CardThumbnail'
 import { LifeCounter } from './LifeCounter'
+import { AddTokenModal, type CustomTokenInput } from './AddTokenModal'
+import { ColorDots } from './ColorDots'
 
 const REF_ZONE_LABELS: Record<'hand' | 'graveyard' | 'exile' | 'library', string> = {
   hand: 'Hand',
@@ -26,6 +29,7 @@ const REF_ZONES = ['hand', 'graveyard', 'exile', 'library'] as const
 export function BotPanel() {
   const { state, dispatch } = useAppState()
   const [menu, setMenu] = useState<MenuState | null>(null)
+  const [showAddToken, setShowAddToken] = useState(false)
   // Every non-board zone starts collapsed — only the board needs to stay in view turn over turn.
   const [expandedZones, setExpandedZones] = useState<Record<(typeof REF_ZONES)[number], boolean>>({
     hand: false,
@@ -66,11 +70,18 @@ export function BotPanel() {
     }
   }
 
-  /** Every zone a card at `zone` could be sent to, minus the zone it's already in. `canGoToBattlefield` gates the one destination that isn't always legal (only `CreateCreature` cards have a body to put into play). */
-  function destinationOptions(zone: Zone, instanceId: string, canGoToBattlefield: boolean): ContextMenuOption[] {
+  /**
+   * Every zone a card at `zone` could be sent to, minus the zone it's already in. `toBattlefield`/
+   * `toPermanents` gate the two destinations that aren't always legal — only `CreateCreature` cards
+   * have a body to put into play, only `CreatePermanent` cards have a permanent to put into play.
+   */
+  function destinationOptions(zone: Zone, instanceId: string, { toBattlefield = false, toPermanents = false }: { toBattlefield?: boolean; toPermanents?: boolean }): ContextMenuOption[] {
     const options: ContextMenuOption[] = []
-    if (zone !== 'battlefield' && canGoToBattlefield) {
+    if (zone !== 'battlefield' && toBattlefield) {
       options.push({ label: 'Put into play', onSelect: () => move(zone, instanceId, { zone: 'battlefield' }) })
+    }
+    if (zone !== 'permanents' && toPermanents) {
+      options.push({ label: 'Put into play', onSelect: () => move(zone, instanceId, { zone: 'permanents' }) })
     }
     if (zone !== 'hand') options.push({ label: 'Return to hand', onSelect: () => move(zone, instanceId, { zone: 'hand' }) })
     if (zone !== 'graveyard') options.push({ label: 'Send to graveyard', onSelect: () => move(zone, instanceId, { zone: 'graveyard' }) })
@@ -90,17 +101,27 @@ export function BotPanel() {
       if (creature.isToken) {
         return [{ label: 'Remove (the token ceases to exist)', onSelect: () => move('battlefield', m.instanceId, { zone: 'graveyard' }) }]
       }
-      return destinationOptions('battlefield', m.instanceId, false)
+      return destinationOptions('battlefield', m.instanceId, {})
+    }
+    if (m.zone === 'permanents') {
+      const permanent = bot.permanents.find((p) => p.instanceId === m.instanceId)
+      if (!permanent) return []
+      return destinationOptions('permanents', m.instanceId, {})
     }
     const ref = refsForZone(m.zone).find((r) => r.instanceId === m.instanceId)
     if (!ref) return []
-    const canGoToBattlefield = resolveCard(ref.deckCardId)?.effect.kind === 'CreateCreature'
-    return destinationOptions(m.zone, m.instanceId, canGoToBattlefield)
+    const cardEffectKind = resolveCard(ref.deckCardId)?.effect.kind
+    return destinationOptions(m.zone, m.instanceId, { toBattlefield: cardEffectKind === 'CreateCreature', toPermanents: cardEffectKind === 'CreatePermanent' })
   }
 
   function openMenu(zone: Zone, instanceId: string, e: React.MouseEvent) {
     e.preventDefault()
     setMenu({ zone, instanceId, x: e.clientX, y: e.clientY })
+  }
+
+  function addCustomToken(token: CustomTokenInput) {
+    dispatch({ type: 'ADD_CUSTOM_TOKEN', ...token })
+    setShowAddToken(false)
   }
 
   return (
@@ -110,33 +131,92 @@ export function BotPanel() {
       </div>
 
       <div>
-        <h3 className="mb-2 text-sm font-semibold text-slate-300">Bot board ({bot.battlefield.length})</h3>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-slate-300">Bot board ({bot.battlefield.length})</h3>
+          <button
+            type="button"
+            onClick={() => setShowAddToken(true)}
+            className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+          >
+            + Add token
+          </button>
+        </div>
         <p className="mb-2 text-xs text-slate-500">Click a dead creature = it goes to the graveyard. Right-click for other destinations.</p>
         {bot.battlefield.length === 0 ? (
           <p className="text-sm text-slate-500">No creatures in play.</p>
         ) : (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-            {bot.battlefield.map((creature) => (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+            {bot.battlefield.map((creature) => {
+              const effective = getEffectiveStats(creature, bot.permanents)
+              const isBuffed = effective.power !== creature.power || effective.toughness !== creature.toughness || effective.keywords.length !== creature.keywords.length
+              return (
+                <button
+                  key={creature.instanceId}
+                  type="button"
+                  onClick={() => move('battlefield', creature.instanceId, { zone: 'graveyard' })}
+                  onContextMenu={(e) => openMenu('battlefield', creature.instanceId, e)}
+                  className="group relative overflow-hidden rounded border border-slate-800 bg-slate-950/60 p-2 text-left transition hover:border-red-700"
+                >
+                  {creature.imageUrl && (
+                    <CardThumbnail
+                      imageUrl={creature.imageUrl}
+                      alt={creature.name}
+                      className="mb-1 w-full rounded transition group-hover:opacity-40 group-hover:grayscale"
+                    />
+                  )}
+                  <p className="text-sm font-medium text-slate-100">{creature.name}</p>
+                  <p className={`text-xs ${isBuffed ? 'font-semibold text-emerald-300' : 'text-slate-400'}`}>
+                    {effective.power}/{effective.toughness}
+                    {creature.summoningSick && ' · summoning sickness'}
+                  </p>
+                  {effective.keywords.length > 0 && <p className="text-xs text-emerald-400">{effective.keywords.map((k) => KEYWORD_LABELS[k]).join(', ')}</p>}
+                  {/* Only shown when there's no card image to look at instead (tokens) — a real card's image already prints its type/colors. */}
+                  {!creature.imageUrl && (creature.typeLine || (creature.colors && creature.colors.length > 0)) && (
+                    <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
+                      <ColorDots colors={creature.colors} />
+                      {creature.typeLine}
+                    </p>
+                  )}
+
+                  <span className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5 bg-red-950/80 px-1 text-center text-red-200 opacity-0 transition group-hover:opacity-100">
+                    <span className="text-sm font-bold">✕ Graveyard</span>
+                    <span className="text-[10px] text-red-300">right-click: other options</span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <h3 className="mb-2 text-sm font-semibold text-slate-300">Bot permanents ({bot.permanents.length})</h3>
+        <p className="mb-2 text-xs text-slate-500">
+          Artifacts/enchantments — persistent buffs to every bot creature, including ones that enter play later. Click a destroyed one = it
+          goes to the graveyard. Right-click for other destinations.
+        </p>
+        {bot.permanents.length === 0 ? (
+          <p className="text-sm text-slate-500">No artifacts or enchantments in play.</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+            {bot.permanents.map((permanent) => (
               <button
-                key={creature.instanceId}
+                key={permanent.instanceId}
                 type="button"
-                onClick={() => move('battlefield', creature.instanceId, { zone: 'graveyard' })}
-                onContextMenu={(e) => openMenu('battlefield', creature.instanceId, e)}
-                className="group relative overflow-hidden rounded border border-slate-800 bg-slate-950/60 p-2 text-left transition hover:border-red-700"
+                onClick={() => move('permanents', permanent.instanceId, { zone: 'graveyard' })}
+                onContextMenu={(e) => openMenu('permanents', permanent.instanceId, e)}
+                className="group relative overflow-hidden rounded border border-purple-900/60 bg-slate-950/60 p-2 text-left transition hover:border-red-700"
               >
-                {creature.imageUrl && (
+                {permanent.imageUrl && (
                   <CardThumbnail
-                    imageUrl={creature.imageUrl}
-                    alt={creature.name}
+                    imageUrl={permanent.imageUrl}
+                    alt={permanent.name}
                     className="mb-1 w-full rounded transition group-hover:opacity-40 group-hover:grayscale"
                   />
                 )}
-                <p className="text-sm font-medium text-slate-100">{creature.name}</p>
-                <p className="text-xs text-slate-400">
-                  {creature.power}/{creature.toughness}
-                  {creature.summoningSick && ' · summoning sickness'}
-                </p>
-                {creature.keywords.length > 0 && <p className="text-xs text-emerald-400">{creature.keywords.map((k) => KEYWORD_LABELS[k]).join(', ')}</p>}
+                <p className="text-sm font-medium text-slate-100">{permanent.name}</p>
+                <p className="text-xs uppercase tracking-wide text-purple-300">{permanent.permanentType}</p>
+                <p className="text-xs text-emerald-400">{summarizePermanent(permanent)}</p>
 
                 <span className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5 bg-red-950/80 px-1 text-center text-red-200 opacity-0 transition group-hover:opacity-100">
                   <span className="text-sm font-bold">✕ Graveyard</span>
@@ -165,6 +245,7 @@ export function BotPanel() {
       ))}
 
       {menu && <CardContextMenu x={menu.x} y={menu.y} onClose={() => setMenu(null)} options={menuOptionsFor(menu)} />}
+      {showAddToken && <AddTokenModal onSubmit={addCustomToken} onCancel={() => setShowAddToken(false)} />}
     </div>
   )
 }
@@ -184,7 +265,7 @@ function RefZoneSection({
       {refs.length === 0 ? (
         <p className="text-sm text-slate-500">Empty.</p>
       ) : (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
           {refs.map((ref) => {
             const card = deckSnapshot.find((c) => c.id === ref.deckCardId)
             return (

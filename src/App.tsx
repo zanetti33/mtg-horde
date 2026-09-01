@@ -7,6 +7,10 @@ import { CardWeighTriage } from './components/CardWeighTriage'
 
 type View = 'deck' | 'game' | 'weigh'
 
+// The Game view is the desktop-heavy one (bot board, zone grids) and benefits from the extra
+// width; Deck/Weigh stay at the narrower reading width they were designed for.
+const CONTENT_MAX_W: Record<View, string> = { game: 'max-w-7xl', deck: 'max-w-5xl', weigh: 'max-w-5xl' }
+
 function Shell() {
   const { state } = useAppState()
   const [view, setView] = useState<View>('game')
@@ -14,7 +18,7 @@ function Shell() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <header className="border-b border-slate-800 bg-slate-900/60">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+        <div className={`mx-auto flex items-center justify-between px-4 py-3 ${CONTENT_MAX_W[view]}`}>
           <h1 className="text-lg font-semibold tracking-tight">Horde Bot</h1>
           <nav className="flex gap-1">
             <button
@@ -41,7 +45,7 @@ function Shell() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-6">
+      <main className={`mx-auto px-4 py-6 ${CONTENT_MAX_W[view]}`}>
         {view === 'deck' && <DeckBuilder />}
         {view === 'game' && (state.game ? <GameBoard /> : <SetupScreen />)}
         {view === 'weigh' && <CardWeighTriage />}

@@ -1,5 +1,4 @@
-import type { DamageInstructionEffect, DeckCardConfig, DiscardInstructionEffect, RemovalInstructionEffect, SacrificeInstructionEffect } from '../types'
-import { resolveNumeric } from './templates'
+import type { DamageInstructionEffect, DiscardInstructionEffect, RemovalInstructionEffect, SacrificeInstructionEffect } from '../types'
 
 const REMOVAL_MODE_LABEL: Record<Exclude<RemovalInstructionEffect['mode'], 'all' | 'random'>, string> = {
   highestPower: 'with the highest power',
@@ -7,14 +6,14 @@ const REMOVAL_MODE_LABEL: Record<Exclude<RemovalInstructionEffect['mode'], 'all'
   highestManaValue: 'with the highest mana value',
 }
 
-export function describeRemoval(card: DeckCardConfig, effect: RemovalInstructionEffect, queryAnswers: Record<string, number>): string {
+export function describeRemoval(effect: RemovalInstructionEffect): string {
   const verb = effect.destroyOrExile === 'destroy' ? 'Destroy' : 'Exile'
 
   if (effect.mode === 'all') {
     return `${verb} all creatures the players control.`
   }
 
-  const count = Math.max(0, Math.round(resolveNumeric(card, 'count', queryAnswers)))
+  const count = Math.max(0, effect.count)
 
   if (effect.mode === 'random') {
     const noun = count === 1 ? 'a random creature' : `${count} random creatures`
@@ -26,8 +25,8 @@ export function describeRemoval(card: DeckCardConfig, effect: RemovalInstruction
   return `${verb} ${noun} among the players' creatures.`
 }
 
-export function describeDamage(card: DeckCardConfig, effect: DamageInstructionEffect, queryAnswers: Record<string, number>): string {
-  const amount = Math.round(resolveNumeric(card, 'amount', queryAnswers))
+export function describeDamage(effect: DamageInstructionEffect): string {
+  const amount = effect.amount
 
   switch (effect.target) {
     case 'eachPlayer':
@@ -43,14 +42,14 @@ export function describeDamage(card: DeckCardConfig, effect: DamageInstructionEf
   }
 }
 
-export function describeSacrifice(card: DeckCardConfig, effect: SacrificeInstructionEffect, queryAnswers: Record<string, number>): string {
-  const count = Math.max(0, Math.round(resolveNumeric(card, 'count', queryAnswers)))
+export function describeSacrifice(effect: SacrificeInstructionEffect): string {
+  const count = Math.max(0, effect.count)
   const noun = count === 1 ? 'a creature' : `${count} creatures`
   return effect.perPlayer ? `Each player sacrifices ${noun}.` : `Players jointly choose ${noun} to sacrifice in total.`
 }
 
-export function describeDiscard(card: DeckCardConfig, effect: DiscardInstructionEffect, queryAnswers: Record<string, number>): string {
-  const count = Math.max(0, Math.round(resolveNumeric(card, 'count', queryAnswers)))
+export function describeDiscard(effect: DiscardInstructionEffect): string {
+  const count = Math.max(0, effect.count)
   const noun = count === 1 ? 'a card' : `${count} cards`
   return effect.perPlayer ? `Each player discards ${noun}.` : `Players jointly choose ${noun} to discard in total.`
 }

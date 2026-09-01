@@ -25,13 +25,12 @@ src/
     CREDITS.md                Required Scryfall/Wizards of the Coast attribution
 
   engine/                     Pure logic, no React — tested with Vitest
-    templates.ts               Resolution of numeric parameters (fixed or query-based) and of the
-                                effects that modify bot state (CreateCreature, PumpBotBoard, ...)
+    templates.ts               Resolution of the effects that modify bot state (CreateCreature,
+                                PumpBotBoard, ...) — every numeric parameter is a plain fixed number
     instructionText.ts         Generates the instruction text shown to the table (removal, damage, ...)
     effectSummary.ts           Readable summary of an effect for the deck builder UI
     effectDefaults.ts          Default values for each template, used when creating a new one
-    botTurnEngine.ts            Orchestrator: draws, collects queries, resolves the turn, declares
-                                attackers
+    botTurnEngine.ts            Orchestrator: draws, resolves the turn, declares attackers
 
   state/
     gameReducer.ts              Pure reducer (AppState = { deck, game }) + all actions
@@ -62,14 +61,16 @@ public/
 | `SetupScreen` | Configuring and starting a new game |
 | `DeckBuilder` / `AddCardForm` (in `DeckBuilder.tsx`) | Deck list, Scryfall search, add/edit/remove cards |
 | `EffectForm` | Form to set an effect's template + parameters |
-| `NumericValueEditor` | Editor for a `NumericValue`: fixed value or query-based formula |
+| `NumberField` | Labeled number input, reused across `EffectForm`'s numeric parameters |
 | `KeywordPicker` | Keyword picker (flying, trample, ...) |
-| `GameBoard` | Main view of a game in progress: "Play bot turn" button, coordinates queries/log/outcome |
-| `BotPanel` | Life, zone counters, bot board (click/right-click to move creatures between zones) |
+| `ColorPicker` | Editable WUBRG color picker (used for `tokenColors` and `AddTokenModal`) |
+| `ColorDots` | Read-only color pips rendering a creature's `colors` (`BotPanel`/`AttackOutcome`) |
+| `AddTokenModal` | Form to hand the bot a player-granted custom token (name, P/T, keywords, type, colors) |
+| `GameBoard` | Main view of a game in progress: "Play bot turn" button, coordinates the reveal log/outcome |
+| `BotPanel` | Life, zone counters, bot board + permanents (click/right-click to move creatures/permanents between zones, "+ Add token") |
 | `CardContextMenu` | Generic context menu positioned at the cursor (used by `BotPanel`) |
 | `TurnLog` | Readable log of the bot's last turn, with the image of every card played |
 | `AttackOutcome` | Confirms which of the bot's attackers survived combat |
-| `QueryInputModal` | Collects answers to "Archenemy-style" questions before resolving the turn |
 
 ## State management
 
@@ -77,8 +78,7 @@ A single `useReducer` in [AppContext.tsx](../src/state/AppContext.tsx) with stat
 
 Deliberate design points worth calling out:
 
-- **The turn-resolution engine is pure.** `drawForTurn` and `resolveBotTurn` (in `botTurnEngine.ts`) don't touch React or global state: they take a `BotState` and return a new `BotState`. The reducer calls them and applies the result. This is what makes them easy to test with Vitest without mounting components.
-- **All "query" questions are collected before resolving the turn**, not one at a time during resolution: `GameBoard` calls `drawForTurn` + `getPendingQueries` to get a preview of the hand and figure out whether input is needed, shows `QueryInputModal` if so, and only after confirmation sends `RESOLVE_BOT_TURN` to the reducer (which redoes `drawForTurn`+`resolveBotTurn` deterministically, since drawing from the same library array always gives the same result). Resolving a turn "halfway", waiting on user input, would have required an intermediate state inside the reducer itself — deliberately avoided.
+- **The turn-resolution engine is pure.** `drawForTurn` and `resolveSingleCard` (in `botTurnEngine.ts`) don't touch React or global state: they take a `BotState` and return a new `BotState`. The reducer calls them and applies the result. This is what makes them easy to test with Vitest without mounting components.
 
 ## Persistence
 

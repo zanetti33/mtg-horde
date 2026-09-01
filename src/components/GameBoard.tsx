@@ -1,17 +1,14 @@
 import { useState } from 'react'
 import { useAppState } from '../state/AppContext'
-import { getPendingQueries, type QueryPrompt } from '../engine/botTurnEngine'
 import { BotPanel } from './BotPanel'
 import { TurnLog } from './TurnLog'
 import { AttackOutcome } from './AttackOutcome'
-import { QueryInputModal } from './QueryInputModal'
 import { CurrentCardReveal } from './CurrentCardReveal'
 import { LifeCounter } from './LifeCounter'
 
 export function GameBoard() {
   const { state, dispatch } = useAppState()
   const game = state.game
-  const [pendingQueries, setPendingQueries] = useState<QueryPrompt[] | null>(null)
   // The turn now reveals one card at a time (CurrentCardReveal) — the full log is a reference for
   // "what already happened", not something that needs to stay in view, so it starts collapsed.
   const [showLog, setShowLog] = useState(false)
@@ -23,12 +20,7 @@ export function GameBoard() {
     // The hand about to be played was already drawn at the end of the previous turn (or at game
     // start), so it's exactly what's sitting in game.bot.hand right now. Once begun, the turn is
     // revealed one card at a time (CurrentCardReveal) rather than resolved all at once.
-    const queries = getPendingQueries(game.bot.hand, game.deckSnapshot)
-    if (queries.length > 0) {
-      setPendingQueries(queries)
-    } else {
-      dispatch({ type: 'BEGIN_BOT_TURN', queryAnswers: {} })
-    }
+    dispatch({ type: 'BEGIN_BOT_TURN' })
   }
 
   const canPlayTurn = game.phase === 'idle' && game.status === 'ongoing'
@@ -81,17 +73,6 @@ export function GameBoard() {
       )}
 
       <BotPanel />
-
-      {pendingQueries && (
-        <QueryInputModal
-          prompts={pendingQueries}
-          onCancel={() => setPendingQueries(null)}
-          onSubmit={(answers) => {
-            dispatch({ type: 'BEGIN_BOT_TURN', queryAnswers: answers })
-            setPendingQueries(null)
-          }}
-        />
-      )}
     </div>
   )
 }

@@ -1,4 +1,15 @@
 {
+  "anger of the gods": {
+    "scryfallId": "f92088c2-74c2-4e63-8a54-83d39f9d6ad6",
+    "name": "Anger of the Gods",
+    "manaCost": "{1}{R}{R}",
+    "cmc": 3,
+    "typeLine": "Sorcery",
+    "imagePath": "cards/f92088c2-74c2-4e63-8a54-83d39f9d6ad6.jpg",
+    "colors": [
+      "R"
+    ]
+  },
   "army of the damned": {
     "scryfallId": "bf818314-1eb4-48da-8e6f-ff7b89873b63",
     "name": "Army of the Damned",
@@ -65,6 +76,17 @@
       "R"
     ]
   },
+  "colossadactyl": {
+    "scryfallId": "8702e776-be2c-48a9-9bc5-bb8ea514333b",
+    "name": "Colossadactyl",
+    "manaCost": "{2}{G}{G}",
+    "cmc": 4,
+    "typeLine": "Creature — Dinosaur",
+    "imagePath": "cards/8702e776-be2c-48a9-9bc5-bb8ea514333b.jpg",
+    "colors": [
+      "G"
+    ]
+  },
   "colossal dreadmaw": {
     "scryfallId": "8059c52b-5d25-4052-b48a-e9e219a7a546",
     "name": "Colossal Dreadmaw",
@@ -87,6 +109,28 @@
       "G"
     ]
   },
+  "concordant crossroads": {
+    "scryfallId": "c9a26f51-5bff-4f06-abaa-6fbb56a8b5b6",
+    "name": "Concordant Crossroads",
+    "manaCost": "{G}",
+    "cmc": 1,
+    "typeLine": "World Enchantment",
+    "imagePath": "cards/c9a26f51-5bff-4f06-abaa-6fbb56a8b5b6.jpg",
+    "colors": [
+      "G"
+    ]
+  },
+  "consumed by greed": {
+    "scryfallId": "e50acc41-3517-42db-b1d3-1bdfd7294d84",
+    "name": "Consumed by Greed",
+    "manaCost": "{1}{B}{B}",
+    "cmc": 3,
+    "typeLine": "Instant",
+    "imagePath": "cards/e50acc41-3517-42db-b1d3-1bdfd7294d84.jpg",
+    "colors": [
+      "B"
+    ]
+  },
   "crested herdcaller": {
     "scryfallId": "44c7792e-39e4-486e-827b-b0d01cd15bc3",
     "name": "Crested Herdcaller",
@@ -105,6 +149,17 @@
     "cmc": 5,
     "typeLine": "Sorcery",
     "imagePath": "cards/11721b88-2654-482c-b9d4-80e54efdbf63.jpg",
+    "colors": [
+      "B"
+    ]
+  },
+  "cursed minotaur": {
+    "scryfallId": "a3990d2f-39d9-49f9-936f-1d40adcf295c",
+    "name": "Cursed Minotaur",
+    "manaCost": "{2}{B}",
+    "cmc": 3,
+    "typeLine": "Creature — Zombie Minotaur",
+    "imagePath": "cards/a3990d2f-39d9-49f9-936f-1d40adcf295c.jpg",
     "colors": [
       "B"
     ]
@@ -165,6 +220,29 @@
       "B"
     ]
   },
+  "dictate of heliod": {
+    "scryfallId": "f964c561-96ac-4558-b46e-ba2c472d5807",
+    "name": "Dictate of Heliod",
+    "manaCost": "{3}{W}{W}",
+    "cmc": 5,
+    "typeLine": "Enchantment",
+    "imagePath": "cards/f964c561-96ac-4558-b46e-ba2c472d5807.jpg",
+    "colors": [
+      "W"
+    ]
+  },
+  "dinosaurs on a spaceship": {
+    "scryfallId": "816242c4-54ec-4f49-8f77-b3dbf1576247",
+    "name": "Dinosaurs on a Spaceship",
+    "manaCost": "{4}{R}{W}",
+    "cmc": 6,
+    "typeLine": "Creature — Dinosaur",
+    "imagePath": "cards/816242c4-54ec-4f49-8f77-b3dbf1576247.jpg",
+    "colors": [
+      "R",
+      "W"
+    ]
+  },
   "diregraf captain": {
     "scryfallId": "158407ad-35a9-40e1-9762-1c0572b56ecb",
     "name": "Diregraf Captain",
@@ -199,6 +277,28 @@
       "B"
     ]
   },
+  "diregraf horde": {
+    "scryfallId": "153be768-ddad-44f2-bcdd-c40353c807d7",
+    "name": "Diregraf Horde",
+    "manaCost": "{4}{B}",
+    "cmc": 5,
+    "typeLine": "Creature — Zombie",
+    "imagePath": "cards/153be768-ddad-44f2-bcdd-c40353c807d7.jpg",
+    "colors": [
+      "B"
+    ]
+  },
+  "doomskar": {
+    "scryfallId": "130ee895-1e5e-4f82-bb66-e1275bac75dd",
+    "name": "Doomskar",
+    "manaCost": "{3}{W}{W}",
+    "cmc": 5,
+    "typeLine": "Sorcery",
+    "imagePath": "cards/130ee895-1e5e-4f82-bb66-e1275bac75dd.jpg",
+    "colors": [
+      "W"
+    ]
+  },
   "drown in sorrow": {
     "scryfallId": "4512357b-0d08-4996-9301-5853eae1ea64",
     "name": "Drown in Sorrow",
@@ -209,6 +309,26 @@
     "colors": [
       "B"
     ]
+  },
+  "earthshaker dreadmaw": {
+    "scryfallId": "cdcbba6f-aa54-44be-a3b0-f712fa8bd5ad",
+    "name": "Earthshaker Dreadmaw",
+    "manaCost": "{4}{G}{G}",
+    "cmc": 6,
+    "typeLine": "Creature — Dinosaur",
+    "imagePath": "cards/cdcbba6f-aa54-44be-a3b0-f712fa8bd5ad.jpg",
+    "colors": [
+      "G"
+    ]
+  },
+  "eldrazi monument": {
+    "scryfallId": "d5439677-d3db-4083-8dd9-0d654016bd79",
+    "name": "Eldrazi Monument",
+    "manaCost": "{5}",
+    "cmc": 5,
+    "typeLine": "Artifact",
+    "imagePath": "cards/d5439677-d3db-4083-8dd9-0d654016bd79.jpg",
+    "colors": []
   },
   "etali, primal storm": {
     "scryfallId": "b6af9894-95b5-4c8e-902f-a9ba70f02e4a",
@@ -276,6 +396,28 @@
       "W"
     ]
   },
+  "gigantosaurus": {
+    "scryfallId": "c1db84d8-d426-4c0d-b44e-5be7b0f5f5bf",
+    "name": "Gigantosaurus",
+    "manaCost": "{G}{G}{G}{G}{G}",
+    "cmc": 5,
+    "typeLine": "Creature — Dinosaur",
+    "imagePath": "cards/c1db84d8-d426-4c0d-b44e-5be7b0f5f5bf.jpg",
+    "colors": [
+      "G"
+    ]
+  },
+  "gisa's bidding": {
+    "scryfallId": "5ad2fdbf-4a68-42e8-9c4f-7a075261ddf8",
+    "name": "Gisa's Bidding",
+    "manaCost": "{2}{B}{B}",
+    "cmc": 4,
+    "typeLine": "Sorcery",
+    "imagePath": "cards/5ad2fdbf-4a68-42e8-9c4f-7a075261ddf8.jpg",
+    "colors": [
+      "B"
+    ]
+  },
   "gishath, sun's avatar": {
     "scryfallId": "bc4a65de-23b5-48f0-b8b7-94608eaced3e",
     "name": "Gishath, Sun's Avatar",
@@ -286,6 +428,17 @@
     "colors": [
       "G",
       "R",
+      "W"
+    ]
+  },
+  "glorious anthem": {
+    "scryfallId": "17d154d3-7ae5-43ff-9978-d974285e2c89",
+    "name": "Glorious Anthem",
+    "manaCost": "{1}{W}{W}",
+    "cmc": 3,
+    "typeLine": "Enchantment",
+    "imagePath": "cards/17d154d3-7ae5-43ff-9978-d974285e2c89.jpg",
+    "colors": [
       "W"
     ]
   },
@@ -322,6 +475,28 @@
       "B"
     ]
   },
+  "gutter skulk": {
+    "scryfallId": "830c7c77-20c4-429f-88c7-b85ab7a0e38b",
+    "name": "Gutter Skulk",
+    "manaCost": "{1}{B}",
+    "cmc": 2,
+    "typeLine": "Creature — Zombie Rat",
+    "imagePath": "cards/830c7c77-20c4-429f-88c7-b85ab7a0e38b.jpg",
+    "colors": [
+      "B"
+    ]
+  },
+  "highcliff felidar": {
+    "scryfallId": "ecbeac44-9392-4522-8ff5-87079386bd0a",
+    "name": "Highcliff Felidar",
+    "manaCost": "{5}{W}{W}",
+    "cmc": 7,
+    "typeLine": "Creature — Cat Beast",
+    "imagePath": "cards/ecbeac44-9392-4522-8ff5-87079386bd0a.jpg",
+    "colors": [
+      "W"
+    ]
+  },
   "hour of devastation": {
     "scryfallId": "d420cc12-cfd7-4007-a0c2-b16c8f63a754",
     "name": "Hour of Devastation",
@@ -331,6 +506,28 @@
     "imagePath": "cards/d420cc12-cfd7-4007-a0c2-b16c8f63a754.jpg",
     "colors": [
       "R"
+    ]
+  },
+  "imposing vantasaur": {
+    "scryfallId": "b6fa5feb-f5e9-4079-acc9-84e458044769",
+    "name": "Imposing Vantasaur",
+    "manaCost": "{5}{W}",
+    "cmc": 6,
+    "typeLine": "Creature — Dinosaur",
+    "imagePath": "cards/b6fa5feb-f5e9-4079-acc9-84e458044769.jpg",
+    "colors": [
+      "W"
+    ]
+  },
+  "intangible virtue": {
+    "scryfallId": "716d82a1-fb5d-4607-b1fa-e8e9edd4dd77",
+    "name": "Intangible Virtue",
+    "manaCost": "{1}{W}",
+    "cmc": 2,
+    "typeLine": "Enchantment",
+    "imagePath": "cards/716d82a1-fb5d-4607-b1fa-e8e9edd4dd77.jpg",
+    "colors": [
+      "W"
     ]
   },
   "kindred dominance": {
@@ -355,6 +552,28 @@
       "B"
     ]
   },
+  "lazotep behemoth": {
+    "scryfallId": "b4be6f22-e9e8-462a-956b-e1c78bbadacc",
+    "name": "Lazotep Behemoth",
+    "manaCost": "{4}{B}",
+    "cmc": 5,
+    "typeLine": "Creature — Zombie Hippo",
+    "imagePath": "cards/b4be6f22-e9e8-462a-956b-e1c78bbadacc.jpg",
+    "colors": [
+      "B"
+    ]
+  },
+  "lord of the accursed": {
+    "scryfallId": "20bfecb3-2dc8-4549-9297-413131de8fdc",
+    "name": "Lord of the Accursed",
+    "manaCost": "{2}{B}",
+    "cmc": 3,
+    "typeLine": "Creature — Zombie",
+    "imagePath": "cards/20bfecb3-2dc8-4549-9297-413131de8fdc.jpg",
+    "colors": [
+      "B"
+    ]
+  },
   "lord of the undead": {
     "scryfallId": "792e773b-5feb-407f-a162-f35d6e693cca",
     "name": "Lord of the Undead",
@@ -375,6 +594,50 @@
     "imagePath": "cards/7aaedf6d-171b-4845-8815-debbe06b5b66.jpg",
     "colors": [
       "B"
+    ]
+  },
+  "moan of the unhallowed": {
+    "scryfallId": "2a1f42ee-7f4e-4b2a-b60b-750662878a5c",
+    "name": "Moan of the Unhallowed",
+    "manaCost": "{2}{B}{B}",
+    "cmc": 4,
+    "typeLine": "Sorcery",
+    "imagePath": "cards/2a1f42ee-7f4e-4b2a-b60b-750662878a5c.jpg",
+    "colors": [
+      "B"
+    ]
+  },
+  "necromantic selection": {
+    "scryfallId": "2002d779-9ea2-432b-8c15-d61995b8adda",
+    "name": "Necromantic Selection",
+    "manaCost": "{4}{B}{B}{B}",
+    "cmc": 7,
+    "typeLine": "Sorcery",
+    "imagePath": "cards/2002d779-9ea2-432b-8c15-d61995b8adda.jpg",
+    "colors": [
+      "B"
+    ]
+  },
+  "necrotic hex": {
+    "scryfallId": "009d2fb8-6144-46d9-9085-26232c174109",
+    "name": "Necrotic Hex",
+    "manaCost": "{6}{B}",
+    "cmc": 7,
+    "typeLine": "Sorcery",
+    "imagePath": "cards/009d2fb8-6144-46d9-9085-26232c174109.jpg",
+    "colors": [
+      "B"
+    ]
+  },
+  "nest robber": {
+    "scryfallId": "576d3845-f45a-4db0-9f7c-845cedb64c49",
+    "name": "Nest Robber",
+    "manaCost": "{1}{R}",
+    "cmc": 2,
+    "typeLine": "Creature — Dinosaur",
+    "imagePath": "cards/576d3845-f45a-4db0-9f7c-845cedb64c49.jpg",
+    "colors": [
+      "R"
     ]
   },
   "night's whisper": {
@@ -408,6 +671,17 @@
     "imagePath": "cards/280ae211-f025-4971-83e6-118ca08a1911.jpg",
     "colors": [
       "B"
+    ]
+  },
+  "pyroclasm": {
+    "scryfallId": "4391b0af-2f26-4a45-9e2a-5bd8e9838107",
+    "name": "Pyroclasm",
+    "manaCost": "{1}{R}",
+    "cmc": 2,
+    "typeLine": "Sorcery",
+    "imagePath": "cards/4391b0af-2f26-4a45-9e2a-5bd8e9838107.jpg",
+    "colors": [
+      "R"
     ]
   },
   "ranging raptor": {
@@ -499,6 +773,17 @@
       "W"
     ]
   },
+  "resurrection": {
+    "scryfallId": "a176b295-9406-4d6b-b15c-e81a72e66874",
+    "name": "Resurrection",
+    "manaCost": "{2}{W}{W}",
+    "cmc": 4,
+    "typeLine": "Sorcery",
+    "imagePath": "cards/a176b295-9406-4d6b-b15c-e81a72e66874.jpg",
+    "colors": [
+      "W"
+    ]
+  },
   "ripjaw raptor": {
     "scryfallId": "ec01de20-8f78-47dd-8735-5e3981013708",
     "name": "Ripjaw Raptor",
@@ -554,6 +839,28 @@
       "B"
     ]
   },
+  "scathe zombies": {
+    "scryfallId": "037cbf71-1199-4457-9b09-f66e7cb294d5",
+    "name": "Scathe Zombies",
+    "manaCost": "{2}{B}",
+    "cmc": 3,
+    "typeLine": "Creature — Zombie",
+    "imagePath": "cards/037cbf71-1199-4457-9b09-f66e7cb294d5.jpg",
+    "colors": [
+      "B"
+    ]
+  },
+  "shared triumph": {
+    "scryfallId": "0d07ebe6-76cf-4345-b59b-9954496c44d0",
+    "name": "Shared Triumph",
+    "manaCost": "{1}{W}",
+    "cmc": 2,
+    "typeLine": "Enchantment",
+    "imagePath": "cards/0d07ebe6-76cf-4345-b59b-9954496c44d0.jpg",
+    "colors": [
+      "W"
+    ]
+  },
   "shifting ceratops": {
     "scryfallId": "8be37115-b4aa-437a-9b72-01af0cf0a0cd",
     "name": "Shifting Ceratops",
@@ -563,6 +870,61 @@
     "imagePath": "cards/8be37115-b4aa-437a-9b72-01af0cf0a0cd.jpg",
     "colors": [
       "G"
+    ]
+  },
+  "slice and dice": {
+    "scryfallId": "dad077c9-abc7-4296-a5d1-9441aa6c38c0",
+    "name": "Slice and Dice",
+    "manaCost": "{4}{R}{R}",
+    "cmc": 6,
+    "typeLine": "Sorcery",
+    "imagePath": "cards/dad077c9-abc7-4296-a5d1-9441aa6c38c0.jpg",
+    "colors": [
+      "R"
+    ]
+  },
+  "soul shatter": {
+    "scryfallId": "2c2fb07b-0f70-403b-be8b-b5217f12e671",
+    "name": "Soul Shatter",
+    "manaCost": "{2}{B}",
+    "cmc": 3,
+    "typeLine": "Instant",
+    "imagePath": "cards/2c2fb07b-0f70-403b-be8b-b5217f12e671.jpg",
+    "colors": [
+      "B"
+    ]
+  },
+  "spear of heliod": {
+    "scryfallId": "34ef01da-d311-4d4f-9f7b-328e7bb17db4",
+    "name": "Spear of Heliod",
+    "manaCost": "{1}{W}{W}",
+    "cmc": 3,
+    "typeLine": "Legendary Enchantment Artifact",
+    "imagePath": "cards/34ef01da-d311-4d4f-9f7b-328e7bb17db4.jpg",
+    "colors": [
+      "W"
+    ]
+  },
+  "stampeding horncrest": {
+    "scryfallId": "3d4d4bb3-583c-4c3b-b6b7-342a78bbaec6",
+    "name": "Stampeding Horncrest",
+    "manaCost": "{4}{R}",
+    "cmc": 5,
+    "typeLine": "Creature — Dinosaur",
+    "imagePath": "cards/3d4d4bb3-583c-4c3b-b6b7-342a78bbaec6.jpg",
+    "colors": [
+      "R"
+    ]
+  },
+  "stir the sands": {
+    "scryfallId": "0cb84193-9648-46e5-a34d-c12cc3f1d7f2",
+    "name": "Stir the Sands",
+    "manaCost": "{4}{B}{B}",
+    "cmc": 6,
+    "typeLine": "Sorcery",
+    "imagePath": "cards/0cb84193-9648-46e5-a34d-c12cc3f1d7f2.jpg",
+    "colors": [
+      "B"
     ]
   },
   "sun-crested pterodon": {
@@ -609,6 +971,28 @@
       "G"
     ]
   },
+  "thundering spineback": {
+    "scryfallId": "0c65d26e-b529-43ba-9e6e-82aed27cbbfc",
+    "name": "Thundering Spineback",
+    "manaCost": "{5}{G}{G}",
+    "cmc": 7,
+    "typeLine": "Creature — Dinosaur",
+    "imagePath": "cards/0c65d26e-b529-43ba-9e6e-82aed27cbbfc.jpg",
+    "colors": [
+      "G"
+    ]
+  },
+  "tomb tyrant": {
+    "scryfallId": "73315f75-252e-4db2-b48c-a60eafaf25e3",
+    "name": "Tomb Tyrant",
+    "manaCost": "{3}{B}",
+    "cmc": 4,
+    "typeLine": "Creature — Zombie Noble",
+    "imagePath": "cards/73315f75-252e-4db2-b48c-a60eafaf25e3.jpg",
+    "colors": [
+      "B"
+    ]
+  },
   "toxic deluge": {
     "scryfallId": "de5afccc-8d42-4bd6-b068-b9ea2361655e",
     "name": "Toxic Deluge",
@@ -631,6 +1015,39 @@
       "W"
     ]
   },
+  "true conviction": {
+    "scryfallId": "9e5dc58b-f486-4b9f-9138-33efa31a05e4",
+    "name": "True Conviction",
+    "manaCost": "{3}{W}{W}{W}",
+    "cmc": 6,
+    "typeLine": "Enchantment",
+    "imagePath": "cards/9e5dc58b-f486-4b9f-9138-33efa31a05e4.jpg",
+    "colors": [
+      "W"
+    ]
+  },
+  "two-headed zombie": {
+    "scryfallId": "2cc5760e-8b27-4d37-9772-c9eda90b1d95",
+    "name": "Two-Headed Zombie",
+    "manaCost": "{3}{B}",
+    "cmc": 4,
+    "typeLine": "Creature — Zombie",
+    "imagePath": "cards/2cc5760e-8b27-4d37-9772-c9eda90b1d95.jpg",
+    "colors": [
+      "B"
+    ]
+  },
+  "undead minotaur": {
+    "scryfallId": "5e5ae910-ee1d-4958-92d9-0b06872913c6",
+    "name": "Undead Minotaur",
+    "manaCost": "{2}{B}",
+    "cmc": 3,
+    "typeLine": "Creature — Zombie Minotaur",
+    "imagePath": "cards/5e5ae910-ee1d-4958-92d9-0b06872913c6.jpg",
+    "colors": [
+      "B"
+    ]
+  },
   "undead warchief": {
     "scryfallId": "01482b0c-d05b-4356-9144-e044159f4dcb",
     "name": "Undead Warchief",
@@ -651,6 +1068,28 @@
     "imagePath": "cards/053b59b4-a22c-4228-aadc-ae9da6bb465e.jpg",
     "colors": [
       "B"
+    ]
+  },
+  "warpath ghoul": {
+    "scryfallId": "94785274-fa79-47cc-9896-0f5f695abb21",
+    "name": "Warpath Ghoul",
+    "manaCost": "{2}{B}",
+    "cmc": 3,
+    "typeLine": "Creature — Zombie",
+    "imagePath": "cards/94785274-fa79-47cc-9896-0f5f695abb21.jpg",
+    "colors": [
+      "B"
+    ]
+  },
+  "wrath of god": {
+    "scryfallId": "537d2b05-3f52-45d6-8fe3-26282085d0c6",
+    "name": "Wrath of God",
+    "manaCost": "{2}{W}{W}",
+    "cmc": 4,
+    "typeLine": "Sorcery",
+    "imagePath": "cards/537d2b05-3f52-45d6-8fe3-26282085d0c6.jpg",
+    "colors": [
+      "W"
     ]
   },
   "yahenni's expertise": {
